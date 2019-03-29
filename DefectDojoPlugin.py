@@ -6,8 +6,8 @@ from burp import IContextMenuInvocation
 from burp import IScanIssue
 from burp import IMessageEditorController
 from java.awt import Component
+from java.awt import Dimension
 from java.awt import GridBagLayout
-from java import awt
 from java.io import PrintWriter
 from java.awt.event import ActionListener
 from java.awt.event import MouseAdapter
@@ -30,9 +30,7 @@ from javax.swing import JButton
 from javax.swing import JMenu
 from javax.swing import SwingUtilities
 from javax.swing.table import AbstractTableModel
-from threading import Lock
 import json
-import urllib
 import httplib
 
 
@@ -109,7 +107,7 @@ class BurpExtender(IBurpExtender, ITab):
         callbacks.setExtensionName("Defect Dojo")
         self._panel = JPanel()
         self._panel.setLayout(None)
-        self._panel.setPreferredSize(awt.Dimension(1368, 1368))
+        self._panel.setPreferredSize(Dimension(1368, 1368))
         self._labelDojoURL = JLabel("Defect Dojo :")
         self._labelDojoURL.setBounds(15, 15, 235, 30)
         self._defectDojoURL = JTextField("defectdojo.herokuapp.com", 40)
