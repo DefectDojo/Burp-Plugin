@@ -320,8 +320,8 @@ class BurpExtender(IBurpExtender, ITab):
                                             ].getRemediationDetail()
             for mess in self._issList[self._listTargetIss.getSelectedIndex(
             )].getHttpMessages():
-                ureqresp.append({"req": mess.getRequest(),
-                                 "resp": mess.getResponse()})
+                ureqresp.append({"req": self._helpers.bytesToString(mess.getRequest()),
+                                 "resp": self._helpers.bytesToString(mess.getResponse())})
         data = {
             'title': title,
             'description': description,
