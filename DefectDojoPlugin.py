@@ -30,6 +30,7 @@ from javax.swing import JButton
 from javax.swing import JMenu
 from javax.swing import SwingUtilities
 from javax.swing.table import AbstractTableModel
+import ssl
 import json
 import httplib
 
@@ -38,6 +39,7 @@ class ProdListener(ActionListener):
     """
     Updates the productID field based on the selection from the ComboBox
     """
+
     def __init__(self, data):
         self.a = data
 
@@ -54,6 +56,7 @@ class EngListener(ActionListener):
     """
     Updates the engagementID field based on the selection from the ComboBox
     """
+
     def __init__(self, data):
         self.a = data
 
@@ -70,6 +73,7 @@ class TestListener(ActionListener):
     """
     Updates the testID field based on the selection from the ComboBox
     """
+
     def __init__(self, data):
         self.a = data
 
@@ -86,6 +90,7 @@ class IssListener(MouseAdapter):
     """
     Listener used to update the list of issues in the Defect Dojo tab when a target is double clicked
     """
+
     def __init__(self, data):
         self.a = data
 
@@ -109,54 +114,54 @@ class BurpExtender(IBurpExtender, ITab):
         self._panel.setLayout(None)
         self._panel.setPreferredSize(Dimension(1368, 1368))
         self._labelDojoURL = JLabel("Defect Dojo :")
-        self._labelDojoURL.setBounds(15, 15, 235, 30)
-        self._defectDojoURL = JTextField("defectdojo.herokuapp.com", 40)
+        self._labelDojoURL.setBounds(15, 15, 100, 30)
+        self._defectDojoURL = JTextField("https://defectdojo.herokuapp.com")
         self._defectDojoURL.setBounds(105, 15, 155, 30)
         self._labelApiKey = JLabel("API Key :")
-        self._labelApiKey.setBounds(15, 45, 130, 30)
+        self._labelApiKey.setBounds(15, 45, 100, 30)
         self._apiKey = JTextField(
-            "1dfdfa2042567ec751f6b3fa96038b743ea6f1cc", 40)
-        self._apiKey.setBounds(150, 45, 235, 30)
+            "1dfdfa2042567ec751f6b3fa96038b743ea6f1cc")
+        self._apiKey.setBounds(105, 45, 155, 30)
         self._labelUsername = JLabel("Username :")
-        self._labelUsername.setBounds(265, 15, 125, 30)
-        self._user = JTextField("admin", 40)
-        self._user.setBounds(395, 15, 155, 30)
+        self._labelUsername.setBounds(265, 15, 100, 30)
+        self._user = JTextField("admin")
+        self._user.setBounds(370, 15, 100, 30)
         self._labelProductID = JLabel("Product ID :")
         self._labelProductID.setBounds(15, 75, 125, 30)
-        self._productID = JTextField(40, actionPerformed=self.getEngagements)
-        self._productID.setBounds(105, 75, 155, 30)
+        self._productID = JTextField(actionPerformed=self.getEngagements)
+        self._productID.setBounds(105, 75, 50, 30)
         self._labelProductName = JLabel("Product Name :")
-        self._labelProductName.setBounds(390, 45, 150, 30)
+        self._labelProductName.setBounds(265, 45, 100, 30)
         self._productName = JComboBox()
-        self._productName.setBounds(545, 45, 155, 30)
+        self._productName.setBounds(370, 45, 100, 30)
         self._labelEngagementID = JLabel("Engagement ID :")
-        self._labelEngagementID.setBounds(15, 105, 125, 30)
+        self._labelEngagementID.setBounds(15, 100, 125, 30)
         self._engagementID = JTextField(40, actionPerformed=self.getTests)
-        self._engagementID.setBounds(135, 105, 155, 30)
+        self._engagementID.setBounds(105, 105, 50, 30)
         self._labelTestID = JLabel("Test ID :")
         self._labelTestID.setBounds(15, 135, 125, 30)
-        self._testID = JTextField(40)
-        self._testID.setBounds(105, 135, 155, 30)
+        self._testID = JTextField()
+        self._testID.setBounds(105, 135, 50, 30)
         self._testName = JComboBox()
-        self._testName.setBounds(265, 135, 300, 30)
+        self._testName.setBounds(160, 135, 300, 30)
         self._labelSearch = JLabel("Search Product :")
-        self._labelSearch.setBounds(265, 75, 100, 30)
+        self._labelSearch.setBounds(160, 75, 100, 30)
         self.prodMan = ProdListener(self)
         self.engMan = EngListener(self)
         self.testMan = TestListener(self)
         self._engagementName = JComboBox()
-        self._engagementName.setBounds(295, 105, 305, 30)
+        self._engagementName.setBounds(160, 105, 300, 30)
         self._productName.addActionListener(self.prodMan)
         self._engagementName.addActionListener(self.engMan)
         self._testName.addActionListener(self.testMan)
         self._search = JTextField(40)
-        self._search.setBounds(370, 75, 100, 30)
+        self._search.setBounds(265, 75, 100, 30)
         self._searchProductButton = JButton(
             'Search Product', actionPerformed=self.getProducts)
-        self._searchProductButton.setBounds(475, 75, 100, 30)
+        self._searchProductButton.setBounds(370, 75, 100, 30)
         self._sendIssueButton = JButton(
             'Send Issue', actionPerformed=self.sendIssue)
-        self._sendIssueButton.setBounds(565, 135, 100, 30)
+        self._sendIssueButton.setBounds(465, 135, 100, 30)
         self._targets = self._callbacks.getSiteMap(None)
         self._tgts = DefaultListModel()
         tgts = set([])
@@ -277,6 +282,11 @@ class BurpExtender(IBurpExtender, ITab):
                 self._userID = objects['id']
 
     def sendIssue(self, event):
+        """
+        This sends a single issue to Defect Dojo be it selected from the Defect Dojo Tab or the Context Menu in the Target Tab .
+        Due to the current limitations in Defect Dojo API request/response pairs cannot be added *yet* .
+        """
+        ureqresp = []
         if event.getActionCommand() == 'Send To Defect Dojo':
             title = self.contextMenu._invoker.getSelectedIssues()[
                 0].getIssueName()
@@ -291,6 +301,9 @@ class BurpExtender(IBurpExtender, ITab):
             if self.contextMenu._invoker.getSelectedIssues()[0].getRemediationDetail():
                 mitigation += self.contextMenu._invoker.getSelectedIssues()[
                     0].getRemediationDetail()
+            for mess in self.contextMenu._invoker.getSelectedIssues()[0].getHttpMessages():
+                ureqresp.append({"req": self._helpers.bytesToString(mess.getRequest()),
+                                 "resp": self._helpers.bytesToString(mess.getResponse())})
         elif event.getActionCommand() == 'Send Issue':
             title = self._issList[self._listTargetIss.getSelectedIndex(
             )].getIssueName()
@@ -305,6 +318,10 @@ class BurpExtender(IBurpExtender, ITab):
             if self._issList[self._listTargetIss.getSelectedIndex()].getRemediationDetail():
                 mitigation += self._issList[self._listTargetIss.getSelectedIndex()
                                             ].getRemediationDetail()
+            for mess in self._issList[self._listTargetIss.getSelectedIndex(
+            )].getHttpMessages():
+                ureqresp.append({"req": mess.getRequest(),
+                                 "resp": mess.getResponse()})
         data = {
             'title': title,
             'description': description,
@@ -319,12 +336,19 @@ class BurpExtender(IBurpExtender, ITab):
             'mitigation': mitigation,
             'static_finding': False,
             'dynamic_finding': False
+            # 'steps_to_reproduce': ureqresp
         }
         data = json.dumps(data)
         self.makeRequest('POST', '/api/v1/findings/', data)
 
     def makeRequest(self, method, url, data=None):
-        conn = httplib.HTTPConnection(self._defectDojoURL.getText())
+        ddserver = self._defectDojoURL.getText().lower().split('://')
+        if ddserver[0] == 'http':
+            conn = httplib.HTTPConnection(ddserver[1])
+        elif ddserver[0] == 'https':
+            conn = httplib.HTTPSConnection(ddserver[1])
+        else:
+            return None
         headers = {
             'User-Agent': 'Testing',
             'Authorization': "ApiKey " + self._user.getText() + ":" + self._apiKey.getText()
@@ -343,6 +367,7 @@ class SendToDojo(IContextMenuFactory):
     """
     SendToDojo implements the class needed to create the context menu when rightclicking an issue .
     """
+
     def __init__(self, data):
         self.a = data
 
