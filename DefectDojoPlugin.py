@@ -1,13 +1,11 @@
 from burp import IBurpExtender
+from thread import start_new_thread
 from burp import ITab
-from burp import IHttpListener
 from burp import IContextMenuFactory
 from burp import IContextMenuInvocation
 from burp import IScanIssue
-from burp import IMessageEditorController
 from java.awt import Component
 from java.awt import Dimension
-from java.awt import GridBagLayout
 from java.io import PrintWriter
 from java.awt.event import ActionListener
 from java.awt.event import MouseAdapter
@@ -208,6 +206,8 @@ class BurpExtender(IBurpExtender, ITab):
         self._panel.add(self._search)
         self._panel.add(self._searchProductButton)
         self._panel.add(self._labelSearch)
+        self.sender = HttpData(self._defectDojoURL.getText(
+        ), self._user.getText(), self._apiKey.getText())
         self.contextMenu = SendToDojo(self)
         callbacks.registerContextMenuFactory(self.contextMenu)
         callbacks.customizeUiComponent(self._panel)
@@ -238,22 +238,32 @@ class BurpExtender(IBurpExtender, ITab):
         Updates the list of products from the API , and also makes the call to retreive the userId behind the scenes .
         """
         self._productName.removeAllItems()
-        data = self.makeRequest(
+        self.checkUpdateSender()
+        start_new_thread(self.doGetProducts, ())
+
+    def doGetProducts(self):
+        self.sender.makeRequest(
             'GET', '/api/v1/products/?name__icontains='+self._search.getText())
+        data = self.sender.req_data
         test = DefectDojoResponse(
             message="Done", data=json.loads(data), success=True)
         self.products = test
         for objects in test.data['objects']:
             self._productName.addItem(objects['name'])
-        self.getUserId()
+        start_new_thread(self.getUserId, ())
 
     def getEngagements(self, event):
         """
         Updates the list of engagements from the API
         """
         self._engagementName.removeAllItems()
-        data = self.makeRequest('GET', '/api/v1/engagements/?product=' +
+        self.checkUpdateSender()
+        start_new_thread(self.doGetEngagements, ())
+
+    def doGetEngagements(self):
+        self.sender.makeRequest('GET', '/api/v1/engagements/?product=' +
                                 self._productID.getText()+'&status=In%20Progress')
+        data = self.sender.req_data
         test = DefectDojoResponse(
             message="Done", data=json.loads(data), success=True)
         self.engagements = test
@@ -265,8 +275,13 @@ class BurpExtender(IBurpExtender, ITab):
         Updates the list containing test names based on test_type+date created so that there is some visual indicator .
         """
         self._testName.removeAllItems()
-        data = self.makeRequest('GET', '/api/v1/tests/?engagement=' +
+        self.checkUpdateSender()
+        start_new_thread(self.doGetTests, ())
+
+    def doGetTests(self):
+        self.sender.makeRequest('GET', '/api/v1/tests/?engagement=' +
                                 self._engagementID.getText())
+        data = self.sender.req_data
         test = DefectDojoResponse(
             message="Done", data=json.loads(data), success=True)
         self.tests = test
@@ -274,7 +289,8 @@ class BurpExtender(IBurpExtender, ITab):
             self._testName.addItem(objects['test_type']+objects['created'])
 
     def getUserId(self):
-        data = self.makeRequest('GET', '/api/v1/users/')
+        self.sender.makeRequest('GET', '/api/v1/users/')
+        data = self.sender.req_data
         test = DefectDojoResponse(
             message="Done", data=json.loads(data), success=True)
         for objects in test.data['objects']:
@@ -339,28 +355,58 @@ class BurpExtender(IBurpExtender, ITab):
             # 'steps_to_reproduce': ureqresp
         }
         data = json.dumps(data)
-        self.makeRequest('POST', '/api/v1/findings/', data)
+        self.checkUpdateSender()
+        start_new_thread(self.sender.makeRequest,
+                         ('POST', '/api/v1/findings/', data))
+
+    def checkUpdateSender(self):
+        if self.sender.ddurl != self._defectDojoURL.getText().lower().split('://'):
+            self.sender.setUrl(self._defectDojoURL.getText())
+        if self.sender.user != self._user.getText():
+            self.sender.setUser(self._user.getText())
+        if self.sender.apikey != self._apiKey.getText():
+            self.sender.setApiKey(self._apiKey.getText())
+
+
+class HttpData():
+    req_data = ''
+    ddurl = ''
+    user = ''
+    apikey = ''
+
+    def __init__(self, ddurl, user, apikey):
+        self.ddurl = ddurl.lower().split('://')
+        self.user = user
+        self.apikey = apikey
+
+    def setUrl(self, ddurl):
+        self.ddurl = ddurl.lower().split('://')
+
+    def setApiKey(self, apikey):
+        self.apikey = apikey
+
+    def setUser(self, user):
+        self.user = user
 
     def makeRequest(self, method, url, data=None):
-        ddserver = self._defectDojoURL.getText().lower().split('://')
-        if ddserver[0] == 'http':
-            conn = httplib.HTTPConnection(ddserver[1])
-        elif ddserver[0] == 'https':
-            conn = httplib.HTTPSConnection(ddserver[1])
+        if self.ddurl[0] == 'http':
+            conn = httplib.HTTPConnection(self.ddurl[1])
+        elif self.ddurl[0] == 'https':
+            conn = httplib.HTTPSConnection(self.ddurl[1])
         else:
             return None
         headers = {
             'User-Agent': 'Testing',
-            'Authorization': "ApiKey " + self._user.getText() + ":" + self._apiKey.getText()
+            'Authorization': "ApiKey " + self.user + ":" + self.apikey
         }
         if data:
             conn.request(method, url, body=data, headers=headers)
         else:
             conn.request(method, url, headers=headers)
         response = conn.getresponse()
-        data = response.read()
+        self.req_data = response.read()
         conn.close()
-        return data
+        return
 
 
 class SendToDojo(IContextMenuFactory):
