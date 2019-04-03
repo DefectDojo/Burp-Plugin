@@ -469,8 +469,8 @@ class HttpData():
         response = conn.getresponse()
         self.req_data = response.read()
         conn.close()
-        if 'Content-Type' in headers:
-            del headers['Content-Type']
+        if 'Content-Type' in self.headers:
+            del self.headers['Content-Type']
         return
 
 
