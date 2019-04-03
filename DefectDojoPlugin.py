@@ -29,6 +29,7 @@ from javax.swing import JMenu
 from javax.swing import SwingUtilities
 from javax.swing.table import AbstractTableModel
 import ssl
+import time
 import json
 import httplib
 
@@ -48,6 +49,7 @@ class ProdListener(ActionListener):
             if selected >= 0:
                 self.a._productID.setText(
                     str(self.a.products.data['objects'][selected]['id']))
+                start_new_thread(self.a.getEngagements, (e,))
 
 
 class EngListener(ActionListener):
@@ -65,6 +67,7 @@ class EngListener(ActionListener):
             if selected >= 0:
                 self.a._engagementID.setText(
                     str(self.a.engagements.data['objects'][selected]['id']))
+                start_new_thread(self.a.getTests, (e,))
 
 
 class TestListener(ActionListener):
@@ -243,7 +246,7 @@ class BurpExtender(IBurpExtender, ITab):
 
     def doGetProducts(self):
         self.sender.makeRequest(
-            'GET', '/api/v1/products/?name__icontains='+self._search.getText())
+            'GET', '/api/v1/products/?name__icontains=' + self._helpers.urlEncode(self._search.getText()))
         data = self.sender.req_data
         test = DefectDojoResponse(
             message="Done", data=json.loads(data), success=True)
@@ -261,8 +264,8 @@ class BurpExtender(IBurpExtender, ITab):
         start_new_thread(self.doGetEngagements, ())
 
     def doGetEngagements(self):
-        self.sender.makeRequest('GET', '/api/v1/engagements/?product=' +
-                                self._productID.getText()+'&status=In%20Progress')
+        self.sender.makeRequest('GET', '/api/v1/engagements/?product='
+                                + self._helpers.urlEncode(self._productID.getText())+'&status=In%20Progress')
         data = self.sender.req_data
         test = DefectDojoResponse(
             message="Done", data=json.loads(data), success=True)
@@ -279,14 +282,14 @@ class BurpExtender(IBurpExtender, ITab):
         start_new_thread(self.doGetTests, ())
 
     def doGetTests(self):
-        self.sender.makeRequest('GET', '/api/v1/tests/?engagement=' +
-                                self._engagementID.getText())
+        self.sender.makeRequest('GET', '/api/v1/tests/?engagement='
+                                + self._helpers.urlEncode(self._engagementID.getText()))
         data = self.sender.req_data
         test = DefectDojoResponse(
             message="Done", data=json.loads(data), success=True)
         self.tests = test
         for objects in test.data['objects']:
-            self._testName.addItem(objects['test_type']+objects['created'])
+            self._testName.addItem(objects['test_type'] + objects['created'])
 
     def getUserId(self):
         self.sender.makeRequest('GET', '/api/v1/users/')
@@ -302,62 +305,63 @@ class BurpExtender(IBurpExtender, ITab):
         This sends a single issue to Defect Dojo be it selected from the Defect Dojo Tab or the Context Menu in the Target Tab .
         Due to the current limitations in Defect Dojo API request/response pairs cannot be added *yet* .
         """
-        ureqresp = []
         if event.getActionCommand() == 'Send To Defect Dojo':
-            title = self.contextMenu._invoker.getSelectedIssues()[
-                0].getIssueName()
-            description = self.contextMenu._invoker.getSelectedIssues()[
-                0].getIssueDetail()
-            severity = self.contextMenu._invoker.getSelectedIssues()[
-                0].getSeverity()
-            impact = self.contextMenu._invoker.getSelectedIssues()[
-                0].getIssueBackground()
-            mitigation = self.contextMenu._invoker.getSelectedIssues()[
-                0].getRemediationBackground()+'\n'
-            if self.contextMenu._invoker.getSelectedIssues()[0].getRemediationDetail():
-                mitigation += self.contextMenu._invoker.getSelectedIssues()[
-                    0].getRemediationDetail()
-            for mess in self.contextMenu._invoker.getSelectedIssues()[0].getHttpMessages():
-                ureqresp.append({"req": self._helpers.bytesToString(mess.getRequest()),
-                                 "resp": self._helpers.bytesToString(mess.getResponse())})
+            lgt = len(self.contextMenu._invoker.getSelectedIssues())
+            issues = self.contextMenu._invoker.getSelectedIssues()
         elif event.getActionCommand() == 'Send Issue':
-            title = self._issList[self._listTargetIss.getSelectedIndex(
-            )].getIssueName()
-            description = self._issList[self._listTargetIss.getSelectedIndex(
-            )].getIssueDetail()
-            severity = self._issList[self._listTargetIss.getSelectedIndex(
-            )].getSeverity()
-            impact = self._issList[self._listTargetIss.getSelectedIndex(
-            )].getIssueBackground()
-            mitigation = self._issList[self._listTargetIss.getSelectedIndex(
-            )].getRemediationBackground()+'\n'
-            if self._issList[self._listTargetIss.getSelectedIndex()].getRemediationDetail():
-                mitigation += self._issList[self._listTargetIss.getSelectedIndex()
-                                            ].getRemediationDetail()
-            for mess in self._issList[self._listTargetIss.getSelectedIndex(
-            )].getHttpMessages():
-                ureqresp.append({"req": self._helpers.bytesToString(mess.getRequest()),
-                                 "resp": self._helpers.bytesToString(mess.getResponse())})
-        data = {
-            'title': title,
-            'description': description,
-            'severity': severity,
-            'product': '/api/v1/products/'+self._productID.getText()+'/',
-            'engagement': '/api/v1/engagements/'+self._engagementID.getText()+'/',
-            'reporter': '/api/v1/users/'+str(self._userID)+'/',
-            'test': '/api/v1/tests/'+self._testID.getText()+'/',
-            'impact': impact,
-            'active': True,
-            'verified': True,
-            'mitigation': mitigation,
-            'static_finding': False,
-            'dynamic_finding': False
-            # 'steps_to_reproduce': ureqresp
-        }
-        data = json.dumps(data)
-        self.checkUpdateSender()
-        start_new_thread(self.sender.makeRequest,
-                         ('POST', '/api/v1/findings/', data))
+            lgt = len(self._listTargetIss.getSelectedIndices())
+            issues = self._listTargetIss.getSelectedIndices()
+        for i in range(lgt):
+            ureqresp = []
+            if event.getActionCommand() == 'Send To Defect Dojo':
+                title = issues[i].getIssueName()
+                description = issues[i].getIssueDetail(
+                ) if issues[i].getIssueDetail() else issues[i].getIssueBackground()
+                severity = issues[i].getSeverity()
+                impact = issues[i].getIssueBackground()
+                mitigation = issues[i].getRemediationBackground() + '\n'
+                if issues[i].getRemediationDetail():
+                    mitigation += issues[i].getRemediationDetail()
+                for mess in issues[i].getHttpMessages():
+                    ureqresp.append({"req": self._helpers.bytesToString(
+                        mess.getRequest()), "resp": self._helpers.bytesToString(mess.getResponse())})
+                url = str(issues[i].getUrl())
+            elif event.getActionCommand() == 'Send Issue':
+                title = self._issList[issues[i]].getIssueName()
+                description = self._issList[issues[i]].getIssueDetail(
+                ) if self._issList[issues[i]].getIssueDetail() else self._issList[issues[i]].getIssueBackground()
+                severity = self._issList[issues[i]].getSeverity()
+                impact = self._issList[issues[i]].getIssueBackground()
+                mitigation = self._issList[issues[i]
+                                           ].getRemediationBackground() + '\n'
+                if self._issList[issues[i]].getRemediationDetail():
+                    mitigation += self._issList[issues[i]
+                                                ].getRemediationDetail()
+                for mess in self._issList[issues[i]].getHttpMessages():
+                    ureqresp.append({"req": self._helpers.bytesToString(
+                        mess.getRequest()), "resp": self._helpers.bytesToString(mess.getResponse())})
+                url = str(self._issList[issues[i]].getUrl())
+            data = {
+                'title': title,
+                'description': description,
+                'severity': severity,
+                'product': '/api/v1/products/' + self._helpers.urlEncode(self._productID.getText()) + '/',
+                'engagement': '/api/v1/engagements/' + self._helpers.urlEncode(self._engagementID.getText()) + '/',
+                'reporter': '/api/v1/users/' + self._helpers.urlEncode(str(self._userID)) + '/',
+                'test': '/api/v1/tests/' + self._helpers.urlEncode(self._testID.getText()) + '/',
+                'impact': impact,
+                'active': True,
+                'verified': True,
+                'mitigation': mitigation,
+                'static_finding': False,
+                'dynamic_finding': False,
+                'url': url
+                # 'steps_to_reproduce': ureqresp
+            }
+            data = json.dumps(data)
+            self.checkUpdateSender()
+            start_new_thread(self.sender.makeRequest,
+                             ('POST', '/api/v1/findings/', data))
 
     def checkUpdateSender(self):
         if self.sender.ddurl != self._defectDojoURL.getText().lower().split('://'):
