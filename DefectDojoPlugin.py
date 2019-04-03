@@ -6,6 +6,7 @@ from burp import IContextMenuInvocation
 from burp import IScanIssue
 from java.awt import Component
 from java.awt import Dimension
+from org.python.core.util import RelativeFile
 from java.io import PrintWriter
 from java.awt.event import ActionListener
 from java.awt.event import MouseAdapter
@@ -28,9 +29,12 @@ from javax.swing import JButton
 from javax.swing import JMenu
 from javax.swing import SwingUtilities
 from javax.swing.table import AbstractTableModel
+import random
+import string
 import ssl
 import time
 import json
+import os
 import httplib
 
 
@@ -129,7 +133,7 @@ class BurpExtender(IBurpExtender, ITab):
         self._user.setBounds(370, 15, 100, 30)
         self._labelProductID = JLabel("Product ID :")
         self._labelProductID.setBounds(15, 75, 125, 30)
-        self._productID = JTextField(actionPerformed=self.getEngagements)
+        self._productID = JTextField(focusLost=self.getEngagements)
         self._productID.setBounds(105, 75, 50, 30)
         self._labelProductName = JLabel("Product Name :")
         self._labelProductName.setBounds(265, 45, 100, 30)
@@ -137,7 +141,7 @@ class BurpExtender(IBurpExtender, ITab):
         self._productName.setBounds(370, 45, 100, 30)
         self._labelEngagementID = JLabel("Engagement ID :")
         self._labelEngagementID.setBounds(15, 100, 125, 30)
-        self._engagementID = JTextField(40, actionPerformed=self.getTests)
+        self._engagementID = JTextField(40, focusLost=self.getTests)
         self._engagementID.setBounds(105, 105, 50, 30)
         self._labelTestID = JLabel("Test ID :")
         self._labelTestID.setBounds(15, 135, 125, 30)
@@ -212,7 +216,9 @@ class BurpExtender(IBurpExtender, ITab):
         self.sender = HttpData(self._defectDojoURL.getText(
         ), self._user.getText(), self._apiKey.getText())
         self.contextMenu = SendToDojo(self)
+        self.contextMenu2 = SendReportToDojo(self)
         callbacks.registerContextMenuFactory(self.contextMenu)
+        callbacks.registerContextMenuFactory(self.contextMenu2)
         callbacks.customizeUiComponent(self._panel)
         callbacks.addSuiteTab(self)
         return
@@ -270,8 +276,9 @@ class BurpExtender(IBurpExtender, ITab):
         test = DefectDojoResponse(
             message="Done", data=json.loads(data), success=True)
         self.engagements = test
-        for objects in test.data['objects']:
-            self._engagementName.addItem(objects['name'])
+        if test.data:
+            for objects in test.data['objects']:
+                self._engagementName.addItem(objects['name'])
 
     def getTests(self, event):
         """
@@ -288,8 +295,10 @@ class BurpExtender(IBurpExtender, ITab):
         test = DefectDojoResponse(
             message="Done", data=json.loads(data), success=True)
         self.tests = test
-        for objects in test.data['objects']:
-            self._testName.addItem(objects['test_type'] + objects['created'])
+        if test.data:
+            for objects in test.data['objects']:
+                self._testName.addItem(
+                    str(objects['test_type']) + str(objects['created']))
 
     def getUserId(self):
         self.sender.makeRequest('GET', '/api/v1/users/')
@@ -300,11 +309,57 @@ class BurpExtender(IBurpExtender, ITab):
             if self._user.getText() == objects['username']:
                 self._userID = objects['id']
 
+    def sendAsReport(self, event):
+        """
+        This sends selected issues(>=1) to Defect Dojo bundled as a report , this will mean that they will be imported into a new test each time .
+        """
+        if hasattr(self, '_userID'):
+            pass
+        else:
+            self.getUserId()
+        f = RelativeFile("Scan.xml")
+        f.createNewFile()
+        self._callbacks.generateScanReport(
+            "XML", self.contextMenu._invoker.getSelectedIssues(), f)
+        ct_boundry = ''.join(random.SystemRandom().choice(
+            string.hexdigits) for _ in range(30))
+        self.sender.headers['Content-Type'] = 'multipart/form-data; boundary='+ct_boundry
+        import datetime
+        now = datetime.datetime.now()
+        content = {
+            'build_id': "",
+            "minimum_severity": "Info",
+            "scan_date": "%d-%d-%d" % (now.year, now.month, now.day),
+            "tags": "BurpPlugin",
+            "active": "true",
+            "engagement": '/api/v1/engagements/' + self._helpers.urlEncode(self._engagementID.getText()) + '/',
+            "scan_type": "Burp Scan"
+        }
+        data = ''
+        for (key, value) in content.iteritems():
+            data += "--"+ct_boundry+"\r\n"
+            data += "Content-Disposition: form-data; name=\"%s\";\r\n\r\n%s\r\n" % (
+                key, value)
+        data += "--"+ct_boundry+"\r\n"
+        data += "Content-Disposition: form-data;name=\"file\"; filename=\"Scan.xml\"\r\n\r\n"
+        f2 = open("./Scan.xml", "r")
+        data += f2.read()
+        f2.close()
+        os.remove("./Scan.xml")
+        data += "\r\n\r\n--"+ct_boundry+"--\r\n"
+        self.checkUpdateSender()
+        start_new_thread(self.sender.makeRequest,
+                         ('POST', '/api/v1/importscan/', data))
+
     def sendIssue(self, event):
         """
-        This sends a single issue to Defect Dojo be it selected from the Defect Dojo Tab or the Context Menu in the Target Tab .
+        This sends selected issues(>=1) to Defect Dojo be they selected from the Defect Dojo Tab or the Context Menu in the Target Tab .
         Due to the current limitations in Defect Dojo API request/response pairs cannot be added *yet* .
         """
+        if hasattr(self, '_userID'):
+            pass
+        else:
+            self.getUserId()
         if event.getActionCommand() == 'Send To Defect Dojo':
             lgt = len(self.contextMenu._invoker.getSelectedIssues())
             issues = self.contextMenu._invoker.getSelectedIssues()
@@ -318,6 +373,8 @@ class BurpExtender(IBurpExtender, ITab):
                 description = issues[i].getIssueDetail(
                 ) if issues[i].getIssueDetail() else issues[i].getIssueBackground()
                 severity = issues[i].getSeverity()
+                if severity == 'Information' or severity == 'Informational':
+                    severity = "Info"
                 impact = issues[i].getIssueBackground()
                 mitigation = issues[i].getRemediationBackground() + '\n'
                 if issues[i].getRemediationDetail():
@@ -331,6 +388,8 @@ class BurpExtender(IBurpExtender, ITab):
                 description = self._issList[issues[i]].getIssueDetail(
                 ) if self._issList[issues[i]].getIssueDetail() else self._issList[issues[i]].getIssueBackground()
                 severity = self._issList[issues[i]].getSeverity()
+                if severity == 'Information' or severity == 'Informational':
+                    severity = "Info"
                 impact = self._issList[issues[i]].getIssueBackground()
                 mitigation = self._issList[issues[i]
                                            ].getRemediationBackground() + '\n'
@@ -355,7 +414,7 @@ class BurpExtender(IBurpExtender, ITab):
                 'mitigation': mitigation,
                 'static_finding': False,
                 'dynamic_finding': False,
-                'url': url
+                'file_path': url
                 # 'steps_to_reproduce': ureqresp
             }
             data = json.dumps(data)
@@ -382,6 +441,10 @@ class HttpData():
         self.ddurl = ddurl.lower().split('://')
         self.user = user
         self.apikey = apikey
+        self.headers = {
+            'User-Agent': 'Testing',
+            'Authorization': "ApiKey " + self.user + ":" + self.apikey
+        }
 
     def setUrl(self, ddurl):
         self.ddurl = ddurl.lower().split('://')
@@ -399,17 +462,15 @@ class HttpData():
             conn = httplib.HTTPSConnection(self.ddurl[1])
         else:
             return None
-        headers = {
-            'User-Agent': 'Testing',
-            'Authorization': "ApiKey " + self.user + ":" + self.apikey
-        }
         if data:
-            conn.request(method, url, body=data, headers=headers)
+            conn.request(method, url, body=data, headers=self.headers)
         else:
-            conn.request(method, url, headers=headers)
+            conn.request(method, url, headers=self.headers)
         response = conn.getresponse()
         self.req_data = response.read()
         conn.close()
+        if 'Content-Type' in headers:
+            del headers['Content-Type']
         return
 
 
@@ -428,6 +489,23 @@ class SendToDojo(IContextMenuFactory):
             return None
         self.selection = JMenuItem(
             "Send To Defect Dojo", actionPerformed=self.a.sendIssue)
+        return [self.selection]
+        
+class SendReportToDojo(IContextMenuFactory):
+    """
+    SendReportToDojo implements the class needed to create the context menu when rightclicking an issue(s) in order to send them as a report to Defect Dojo .
+    """
+
+    def __init__(self, data):
+        self.a = data
+
+    def createMenuItems(self, invoker):
+        self._invoker = invoker
+        context = self._invoker.getInvocationContext()
+        if not context == self._invoker.CONTEXT_SCANNER_RESULTS:
+            return None
+        self.selection = JMenuItem(
+            "Send Report To Defect Dojo", actionPerformed=self.a.sendAsReport)
         return [self.selection]
 
 
