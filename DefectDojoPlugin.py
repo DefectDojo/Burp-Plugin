@@ -319,8 +319,12 @@ class BurpExtender(IBurpExtender, ITab):
             self.getUserId()
         f = RelativeFile("Scan.xml")
         f.createNewFile()
-        self._callbacks.generateScanReport(
-            "XML", self.contextMenu._invoker.getSelectedIssues(), f)
+        if event.getActionCommand() == "Send All Issues to Defect Dojo":
+            self._callbacks.generateScanReport("XML", self._callbacks.getScanIssues(
+                self.contextMenu._invoker.getSelectedMessages()[0].getHttpService().getProtocol()+"://"+self.contextMenu._invoker.getSelectedMessages()[0].getHttpService().getHost()+"/"), f)
+        else:
+            self._callbacks.generateScanReport(
+                "XML", self.contextMenu._invoker.getSelectedIssues(), f)
         ct_boundry = ''.join(random.SystemRandom().choice(
             string.hexdigits) for _ in range(30))
         self.sender.headers['Content-Type'] = 'multipart/form-data; boundary='+ct_boundry
@@ -490,7 +494,8 @@ class SendToDojo(IContextMenuFactory):
         self.selection = JMenuItem(
             "Send To Defect Dojo", actionPerformed=self.a.sendIssue)
         return [self.selection]
-        
+
+
 class SendReportToDojo(IContextMenuFactory):
     """
     SendReportToDojo implements the class needed to create the context menu when rightclicking an issue(s) in order to send them as a report to Defect Dojo .
@@ -502,11 +507,16 @@ class SendReportToDojo(IContextMenuFactory):
     def createMenuItems(self, invoker):
         self._invoker = invoker
         context = self._invoker.getInvocationContext()
-        if not context == self._invoker.CONTEXT_SCANNER_RESULTS:
+        if not (context == self._invoker.CONTEXT_SCANNER_RESULTS or context == self._invoker.CONTEXT_TARGET_SITE_MAP_TREE):
             return None
-        self.selection = JMenuItem(
-            "Send Report To Defect Dojo", actionPerformed=self.a.sendAsReport)
-        return [self.selection]
+        if context == self._invoker.CONTEXT_SCANNER_RESULTS:
+            self.selection = JMenuItem(
+                "Send Report To Defect Dojo", actionPerformed=self.a.sendAsReport)
+            return [self.selection]
+        else:
+            self.selection = JMenuItem(
+                "Send All Issues to Defect Dojo", actionPerformed=self.a.sendAsReport)
+            return [self.selection]
 
 
 class DefectDojoResponse(object):
