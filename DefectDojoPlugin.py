@@ -247,10 +247,10 @@ class BurpExtender(IBurpExtender, ITab):
         Updates the list of products from the API , and also makes the call to retreive the userId behind the scenes .
         """
         self._productName.removeAllItems()
-        self.checkUpdateSender()
         start_new_thread(self.doGetProducts, ())
 
     def doGetProducts(self):
+        self.checkUpdateSender()
         self.sender.makeRequest(
             'GET', '/api/v1/products/?name__icontains=' + self._helpers.urlEncode(self._search.getText()))
         data = self.sender.req_data
@@ -266,10 +266,10 @@ class BurpExtender(IBurpExtender, ITab):
         Updates the list of engagements from the API
         """
         self._engagementName.removeAllItems()
-        self.checkUpdateSender()
         start_new_thread(self.doGetEngagements, ())
 
     def doGetEngagements(self):
+        self.checkUpdateSender()
         self.sender.makeRequest('GET', '/api/v1/engagements/?product='
                                 + self._helpers.urlEncode(self._productID.getText())+'&status=In%20Progress')
         data = self.sender.req_data
@@ -289,6 +289,7 @@ class BurpExtender(IBurpExtender, ITab):
         start_new_thread(self.doGetTests, ())
 
     def doGetTests(self):
+        self.checkUpdateSender()
         self.sender.makeRequest('GET', '/api/v1/tests/?engagement='
                                 + self._helpers.urlEncode(self._engagementID.getText()))
         data = self.sender.req_data
@@ -301,6 +302,7 @@ class BurpExtender(IBurpExtender, ITab):
                     str(objects['test_type']) + str(objects['created']))
 
     def getUserId(self):
+        self.checkUpdateSender()
         self.sender.makeRequest('GET', '/api/v1/users/')
         data = self.sender.req_data
         test = DefectDojoResponse(
@@ -321,7 +323,7 @@ class BurpExtender(IBurpExtender, ITab):
         f.createNewFile()
         if event.getActionCommand() == "Send All Issues to Defect Dojo":
             self._callbacks.generateScanReport("XML", self._callbacks.getScanIssues(
-                self.contextMenu._invoker.getSelectedMessages()[0].getHttpService().getProtocol()+"://"+self.contextMenu._invoker.getSelectedMessages()[0].getHttpService().getHost()+"/"), f)
+                self.contextMenu._invoker.getSelectedMessages()[0].getHttpService().getProtocol()+"://"+self.contextMenu._invoker.getSelectedMessages()[0].getHttpService().getHost()), f)
         else:
             self._callbacks.generateScanReport(
                 "XML", self.contextMenu._invoker.getSelectedIssues(), f)
@@ -345,12 +347,12 @@ class BurpExtender(IBurpExtender, ITab):
             data += "Content-Disposition: form-data; name=\"%s\";\r\n\r\n%s\r\n" % (
                 key, value)
         data += "--"+ct_boundry+"\r\n"
-        data += "Content-Disposition: form-data;name=\"file\"; filename=\"Scan.xml\"\r\n\r\n"
+        data += "Content-Disposition: form-data;name=\"file\"; filename=\"Scan.xml\"\r\n\r\n\r\n"
         f2 = open("./Scan.xml", "r")
-        data += f2.read()
+        data += str(f2.read())
         f2.close()
         os.remove("./Scan.xml")
-        data += "\r\n\r\n--"+ct_boundry+"--\r\n"
+        data += "\r\n\r\n\r\n--"+ct_boundry+"--\r\n"
         self.checkUpdateSender()
         start_new_thread(self.sender.makeRequest,
                          ('POST', '/api/v1/importscan/', data))
@@ -380,9 +382,12 @@ class BurpExtender(IBurpExtender, ITab):
                 if severity == 'Information' or severity == 'Informational':
                     severity = "Info"
                 impact = issues[i].getIssueBackground()
-                mitigation = issues[i].getRemediationBackground() + '\n'
-                if issues[i].getRemediationDetail():
-                    mitigation += issues[i].getRemediationDetail()
+                if issues[i].getRemediationBackground():
+                    mitigation = issues[i].getRemediationBackground() + '\n'
+                    if issues[i].getRemediationDetail():
+                        mitigation += issues[i].getRemediationDetail()
+                else:
+                    mitigation=""
                 for mess in issues[i].getHttpMessages():
                     ureqresp.append({"req": self._helpers.bytesToString(
                         mess.getRequest()), "resp": self._helpers.bytesToString(mess.getResponse())})
@@ -395,11 +400,13 @@ class BurpExtender(IBurpExtender, ITab):
                 if severity == 'Information' or severity == 'Informational':
                     severity = "Info"
                 impact = self._issList[issues[i]].getIssueBackground()
-                mitigation = self._issList[issues[i]
-                                           ].getRemediationBackground() + '\n'
-                if self._issList[issues[i]].getRemediationDetail():
-                    mitigation += self._issList[issues[i]
-                                                ].getRemediationDetail()
+                if self._issList[issues[i]].getRemediationBackground():
+                    mitigation = self._issList[issues[i]].getRemediationBackground() + '\n'
+                    if self._issList[issues[i]].getRemediationDetail():
+                        mitigation += self._issList[issues[i]
+                                                    ].getRemediationDetail()
+                else:
+                    mitigation=""
                 for mess in self._issList[issues[i]].getHttpMessages():
                     ureqresp.append({"req": self._helpers.bytesToString(
                         mess.getRequest()), "resp": self._helpers.bytesToString(mess.getResponse())})
@@ -431,7 +438,7 @@ class BurpExtender(IBurpExtender, ITab):
             self.sender.setUrl(self._defectDojoURL.getText())
         if self.sender.user != self._user.getText():
             self.sender.setUser(self._user.getText())
-        if self.sender.apikey != self._apiKey.getText():
+        if self._apiKey.getText()!=self.sender.apikey :
             self.sender.setApiKey(self._apiKey.getText())
 
 
@@ -446,6 +453,7 @@ class HttpData():
         self.user = user
         self.apikey = apikey
         self.headers = {
+            'Content-Type':'application/json',
             'User-Agent': 'Testing',
             'Authorization': "ApiKey " + self.user + ":" + self.apikey
         }
@@ -454,7 +462,8 @@ class HttpData():
         self.ddurl = ddurl.lower().split('://')
 
     def setApiKey(self, apikey):
-        self.apikey = apikey
+        self.apikey=apikey
+        self.headers['Authorization'] = "ApiKey "+self.user+":"+apikey
 
     def setUser(self, user):
         self.user = user
@@ -473,8 +482,8 @@ class HttpData():
         response = conn.getresponse()
         self.req_data = response.read()
         conn.close()
-        if 'Content-Type' in self.headers:
-            del self.headers['Content-Type']
+        if self.headers['Content-Type']!='application/json':
+            self.headers['Content-Type']='application/json'
         return
 
 
