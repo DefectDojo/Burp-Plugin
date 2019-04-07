@@ -404,7 +404,7 @@ class BurpExtender(IBurpExtender, ITab):
                     if issues[i].getRemediationDetail():
                         mitigation += issues[i].getRemediationDetail()
                 else:
-                    mitigation = ""
+                    mitigation = str(issues[i].getIssueType())
                 for mess in issues[i].getHttpMessages():
                     ureqresp.append({"req": self._helpers.bytesToString(
                         mess.getRequest()), "resp": self._helpers.bytesToString(mess.getResponse())})
@@ -424,23 +424,26 @@ class BurpExtender(IBurpExtender, ITab):
                         mitigation += self._issList[issues[i]
                                                     ].getRemediationDetail()
                 else:
-                    mitigation = ""
+                    mitigation = str(self._issList[issues[i]].getIssueType())
                 for mess in self._issList[issues[i]].getHttpMessages():
                     ureqresp.append({"req": self._helpers.bytesToString(
                         mess.getRequest()), "resp": self._helpers.bytesToString(mess.getResponse())})
                 url = str(self._issList[issues[i]].getUrl())
-            try :
+            description=html2text(description)
+            impact=html2text(impact)
+            mitigation=html2text(mitigation)
+            try:
                 json.loads(description)
             except:
-                description=json.dumps(description)
-            try :
+                description = description.replace("\'","")
+            try:
                 json.loads(impact)
             except:
-                impact=json.dumps(impact)
-            try :
+                impact = impact.replace("\'","")
+            try:
                 json.loads(mitigation)
             except:
-                mitigation=json.dumps(mitigation)
+                mitigation = mitigation.replace("\'","")
             data = {
                 'title': title,
                 'description': description,
@@ -594,3 +597,37 @@ class DefectDojoResponse(object):
             return json.dumps(self.data, sort_keys=True, indent=4, separators=(',', ': '))
         else:
             return json.dumps(self.data)
+
+
+def html2text(strText):
+    html = strText
+    int2 = html.lower().find("<body")
+    if int2 > 0:
+        html = html[int2:]
+    int2 = html.lower().find("</body>")
+    if int2 > 0:
+        html = html[:int2]
+    list1 = ['<br>',  '<tr',  '<td', '</p>', 'span>', 'li>', '</h', 'div>']
+    list2 = [chr(13), chr(13), chr(9), chr(
+        13), chr(13),  chr(13), chr(13), chr(13)]
+    f1 = True
+    f2 = True
+    toText = ""
+    for int1 in range(len(html)):
+        str2 = html[int1]
+        for int2 in range(len(list1)):
+            if html[int1:int1+len(list1[int2])].lower() == list1[int2]:
+                toText = toText + list2[int2]
+        if str2 == '<':
+            f2 = False
+        if f1 and f2 and (ord(str2) != 10):
+            toText = toText + str2
+        if str2 == '>':
+            f2 = True
+        if f1 and f2:
+            toText = toText.replace(chr(32)+chr(13), chr(13))
+            toText = toText.replace(chr(9)+chr(13), chr(13))
+            toText = toText.replace(chr(13)+chr(32), chr(13))
+            toText = toText.replace(chr(13)+chr(9), chr(13))
+            toText = toText.replace(chr(13)+chr(13), chr(13))
+    return toText
