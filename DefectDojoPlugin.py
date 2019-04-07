@@ -429,6 +429,18 @@ class BurpExtender(IBurpExtender, ITab):
                     ureqresp.append({"req": self._helpers.bytesToString(
                         mess.getRequest()), "resp": self._helpers.bytesToString(mess.getResponse())})
                 url = str(self._issList[issues[i]].getUrl())
+            try :
+                json.loads(description)
+            except:
+                description=json.dumps(description)
+            try :
+                json.loads(impact)
+            except:
+                impact=json.dumps(impact)
+            try :
+                json.loads(mitigation)
+            except:
+                mitigation=json.dumps(mitigation)
             data = {
                 'title': title,
                 'description': description,
