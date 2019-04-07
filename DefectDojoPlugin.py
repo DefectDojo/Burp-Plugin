@@ -322,14 +322,20 @@ class BurpExtender(IBurpExtender, ITab):
         f = RelativeFile("Scan.xml")
         f.createNewFile()
         if event.getActionCommand() == "Send All Issues to Defect Dojo":
-            self._callbacks.generateScanReport("XML", self._callbacks.getScanIssues(
-                self.contextMenu._invoker.getSelectedMessages()[0].getHttpService().getProtocol()+"://"+self.contextMenu._invoker.getSelectedMessages()[0].getHttpService().getHost()), f)
+            issues = None
+            ctr = 0
+            for urls in self.contextMenu._invoker.getSelectedMessages():
+                if ctr == 0:
+                    issues = self._callbacks.getScanIssues(str(urls.getUrl()))
+                else:
+                    issues += self._callbacks.getScanIssues(str(urls.getUrl()))
+            self._callbacks.generateScanReport("XML", issues, f)
         else:
             self._callbacks.generateScanReport(
                 "XML", self.contextMenu._invoker.getSelectedIssues(), f)
         ct_boundry = ''.join(random.SystemRandom().choice(
             string.hexdigits) for _ in range(30))
-        self.sender.headers['Content-Type'] = 'multipart/form-data; boundary='+ct_boundry
+        self.sender.headers['Content-Type'] = 'multipart/form-data; boundary=----------'+ct_boundry
         import datetime
         now = datetime.datetime.now()
         content = {
@@ -338,24 +344,35 @@ class BurpExtender(IBurpExtender, ITab):
             "scan_date": "%d-%d-%d" % (now.year, now.month, now.day),
             "tags": "BurpPlugin",
             "active": "true",
+            "verified": "true",
             "engagement": '/api/v1/engagements/' + self._helpers.urlEncode(self._engagementID.getText()) + '/',
-            "scan_type": "Burp Scan"
+            'scan_type': 'Burp Scan'
         }
-        data = ''
+        nl = '\r\n'
+        data = []
         for (key, value) in content.iteritems():
-            data += "--"+ct_boundry+"\r\n"
-            data += "Content-Disposition: form-data; name=\"%s\";\r\n\r\n%s\r\n" % (
-                key, value)
-        data += "--"+ct_boundry+"\r\n"
-        data += "Content-Disposition: form-data;name=\"file\"; filename=\"Scan.xml\"\r\n\r\n\r\n"
-        f2 = open("./Scan.xml", "r")
-        data += str(f2.read())
-        f2.close()
+            data.append('------------'+ct_boundry)
+            data.append('Content-Disposition: form-data; name="%s";' % (key))
+            data.append('')
+            data.append(value)
+        data.append('------------'+ct_boundry)
+        data.append(
+            'Content-Disposition: form-data;name="file"; filename="Scan.xml";')
+        data.append('Content-Type: application/xml')
+        data.append('')
+        with open("./Scan.xml")as a:
+            for line in a:
+                data.append(line.encode('utf8', 'replace'))
         os.remove("./Scan.xml")
-        data += "\r\n\r\n\r\n--"+ct_boundry+"--\r\n"
+        data.append('------------'+ct_boundry+'--')
+        body_s = nl.join(data)
+        data2 = open("./Data.txt", "w")
+        data2.write(body_s)
+        data2.close()
+        data2 = open('./Data.txt', "r")
         self.checkUpdateSender()
         start_new_thread(self.sender.makeRequest,
-                         ('POST', '/api/v1/importscan/', data))
+                         ('POST', '/api/v1/importscan/', data2))
 
     def sendIssue(self, event):
         """
@@ -387,7 +404,7 @@ class BurpExtender(IBurpExtender, ITab):
                     if issues[i].getRemediationDetail():
                         mitigation += issues[i].getRemediationDetail()
                 else:
-                    mitigation=""
+                    mitigation = ""
                 for mess in issues[i].getHttpMessages():
                     ureqresp.append({"req": self._helpers.bytesToString(
                         mess.getRequest()), "resp": self._helpers.bytesToString(mess.getResponse())})
@@ -401,12 +418,13 @@ class BurpExtender(IBurpExtender, ITab):
                     severity = "Info"
                 impact = self._issList[issues[i]].getIssueBackground()
                 if self._issList[issues[i]].getRemediationBackground():
-                    mitigation = self._issList[issues[i]].getRemediationBackground() + '\n'
+                    mitigation = self._issList[issues[i]
+                                               ].getRemediationBackground() + '\n'
                     if self._issList[issues[i]].getRemediationDetail():
                         mitigation += self._issList[issues[i]
                                                     ].getRemediationDetail()
                 else:
-                    mitigation=""
+                    mitigation = ""
                 for mess in self._issList[issues[i]].getHttpMessages():
                     ureqresp.append({"req": self._helpers.bytesToString(
                         mess.getRequest()), "resp": self._helpers.bytesToString(mess.getResponse())})
@@ -438,7 +456,7 @@ class BurpExtender(IBurpExtender, ITab):
             self.sender.setUrl(self._defectDojoURL.getText())
         if self.sender.user != self._user.getText():
             self.sender.setUser(self._user.getText())
-        if self._apiKey.getText()!=self.sender.apikey :
+        if self._apiKey.getText() != self.sender.apikey:
             self.sender.setApiKey(self._apiKey.getText())
 
 
@@ -453,7 +471,7 @@ class HttpData():
         self.user = user
         self.apikey = apikey
         self.headers = {
-            'Content-Type':'application/json',
+            'Content-Type': 'application/json',
             'User-Agent': 'Testing',
             'Authorization': "ApiKey " + self.user + ":" + self.apikey
         }
@@ -462,7 +480,7 @@ class HttpData():
         self.ddurl = ddurl.lower().split('://')
 
     def setApiKey(self, apikey):
-        self.apikey=apikey
+        self.apikey = apikey
         self.headers['Authorization'] = "ApiKey "+self.user+":"+apikey
 
     def setUser(self, user):
@@ -482,8 +500,12 @@ class HttpData():
         response = conn.getresponse()
         self.req_data = response.read()
         conn.close()
-        if self.headers['Content-Type']!='application/json':
-            self.headers['Content-Type']='application/json'
+        try:
+            os.remove("./Data.txt")
+        except:
+            pass
+        if self.headers['Content-Type'] != 'application/json':
+            self.headers['Content-Type'] = 'application/json'
         return
 
 
