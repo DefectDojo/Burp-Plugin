@@ -600,7 +600,7 @@ class DefectDojoResponse(object):
 
 
 def html2text(strText):
-    html = strText
+    html = str(strText).encode('utf8','replace')
     int2 = html.lower().find("<body")
     if int2 > 0:
         html = html[int2:]
