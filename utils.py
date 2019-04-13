@@ -4,7 +4,22 @@ from java.awt.event import MouseAdapter
 from burp import IContextMenuFactory
 from burp import IContextMenuInvocation
 from javax.swing import JMenuItem
+from javax.swing import JButton
+from java.awt import Desktop
+from java import net
 
+
+class ClickableLink():
+    def __init__(self,text,url):
+        self.text = text
+        self.url = url
+    def getClickAbleLink(self):
+        self.link = JButton(actionPerformed=self.openURL)
+        self.link.setText(self.text)
+        return self.link
+    def openURL(self,event):
+        print self.url
+        Desktop.getDesktop().browse(net.URI(self.url))
 
 def html2text(strText):
     html = str(strText).encode('utf8', 'replace')
