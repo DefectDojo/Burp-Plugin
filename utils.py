@@ -18,7 +18,6 @@ class ClickableLink():
         self.link.setText(self.text)
         return self.link
     def openURL(self,event):
-        print self.url
         Desktop.getDesktop().browse(net.URI(self.url))
 
 def html2text(strText):
