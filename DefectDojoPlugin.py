@@ -23,7 +23,7 @@ from javax.swing import JPanel
 from javax.swing import JLabel
 from javax.swing import JMenuItem
 from javax.swing import DefaultListModel
-from javax.swing import JList
+from javax.swing import JList,JOptionPane
 from javax.swing import JTextField
 from javax.swing import JComboBox
 from javax.swing import JButton
@@ -38,7 +38,7 @@ import json
 import os
 import httplib
 from utils import EngListener, ProdListener, TestListener, IssListener
-from utils import SendReportToDojo, SendToDojo, html2text
+from utils import SendReportToDojo, SendToDojo, html2text, ClickableLink
 
 __author__ = 'Alexandru Dracea'
 
@@ -274,14 +274,12 @@ class BurpExtender(IBurpExtender, ITab):
                     url_loc = '/'.join(url_loc[3:])
                     url = "http://" + urls.getHttpService().getHost(
                     ) + '/' + url_loc
-                    print url
                 elif urls.getHttpService().getProtocol(
                 ) == 'https' and urls.getHttpService().getPort() == 443:
                     url_loc = str(urls.getUrl()).split('/')
                     url_loc = '/'.join(url_loc[3:])
                     url = "https://" + urls.getHttpService().getHost(
                     ) + '/' + url_loc
-                    print url
                 else:
                     url = str(urls.getUrl())
                 if ctr == 0:
@@ -291,7 +289,6 @@ class BurpExtender(IBurpExtender, ITab):
                     for iss in self._callbacks.getScanIssues(url):
                         issues.append(iss)
                     ctr += 1
-            print issues
             self._callbacks.generateScanReport("XML", issues, f)
         else:
             self._callbacks.generateScanReport(
@@ -346,7 +343,7 @@ class BurpExtender(IBurpExtender, ITab):
         data2 = open('./Data.txt', "r")
         self.checkUpdateSender()
         start_new_thread(self.sender.makeRequest,
-                         ('POST', '/api/v1/importscan/', data2))
+                         ('POST', '/api/v1/importscan/', data2,self.getUiComponent().parent))
 
     def sendIssue(self, event):
         """
@@ -506,7 +503,7 @@ class HttpData():
     def setUser(self, user):
         self.user = user
 
-    def makeRequest(self, method, url, data=None):
+    def makeRequest(self, method, url, data=None,src=None):
         if self.ddurl[0] == 'http':
             conn = httplib.HTTPConnection(self.ddurl[1])
         elif self.ddurl[0] == 'https':
@@ -520,6 +517,12 @@ class HttpData():
         response = conn.getresponse()
         self.req_data = response.read()
         conn.close()
+        if url == '/api/v1/importscan/':
+            try :
+                lbl = ClickableLink(str("Successfully Imported selected Issues ! Access Test : " + response.getheader('location').split('/')[4]),str(self.ddurl[0] + "://" + self.ddurl[1] + "/test/" +response.getheader('location').split('/')[4]))
+                JOptionPane.showMessageDialog(src,lbl.getClickAbleLink())
+            except :
+                JOptionPane.showMessageDialog(src,"Import possibly failed!","Error",JOptionPane.WARNING_MESSAGE)
         try:
             os.remove("./Data.txt")
         except:
