@@ -10,6 +10,12 @@ from java import net
 
 
 class ClickableLink():
+    """
+    This method generates a clickable button inside the prompt
+    after the report is uploaded . It supposedly opens
+    your default browser on the test's page .
+    TODO make it work on linux as well .
+    """
     def __init__(self,text,url):
         self.text = text
         self.url = url
@@ -21,6 +27,11 @@ class ClickableLink():
         Desktop.getDesktop().browse(net.URI(self.url))
 
 def html2text(strText):
+    """
+    This method transforms burp's HTML tags into normal
+    text .
+    TODO tranform into markdown .
+    """
     html = str(strText).encode('utf8', 'replace')
     int2 = html.lower().find("<body")
     if int2 > 0:
