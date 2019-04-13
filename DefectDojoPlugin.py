@@ -271,14 +271,16 @@ class BurpExtender(IBurpExtender, ITab):
                 if urls.getHttpService().getProtocol(
                 ) == 'http' and urls.getHttpService().getPort() == 80:
                     url_loc = str(urls.getUrl()).split('/')
+                    url_loc = '/'.join(url_loc[3:])
                     url = "http://" + urls.getHttpService().getHost(
-                    ) + '/' + url_loc[3]
+                    ) + '/' + url_loc
                     print url
                 elif urls.getHttpService().getProtocol(
                 ) == 'https' and urls.getHttpService().getPort() == 443:
                     url_loc = str(urls.getUrl()).split('/')
+                    url_loc = '/'.join(url_loc[3:])
                     url = "https://" + urls.getHttpService().getHost(
-                    ) + '/' + url_loc[3]
+                    ) + '/' + url_loc
                     print url
                 else:
                     url = str(urls.getUrl())
