@@ -11,6 +11,7 @@ from java.io import PrintWriter
 from java.awt.event import ActionListener
 from java.awt.event import MouseAdapter
 import javax.swing.AbstractAction
+from jarray import array
 from java.util import ArrayList
 import javax.swing.Action
 from java.util import List
@@ -36,78 +37,10 @@ import time
 import json
 import os
 import httplib
+from utils import EngListener, ProdListener, TestListener, IssListener
+from utils import SendReportToDojo, SendToDojo, html2text
 
-
-class ProdListener(ActionListener):
-    """
-    Updates the productID field based on the selection from the ComboBox
-    """
-
-    def __init__(self, data):
-        self.a = data
-
-    def actionPerformed(self, e):
-        cmd = e.getActionCommand()
-        if cmd == 'comboBoxChanged':
-            selected = self.a._productName.selectedIndex
-            if selected >= 0:
-                self.a._productID.setText(
-                    str(self.a.products.data['objects'][selected]['id']))
-                start_new_thread(self.a.getEngagements, (e,))
-
-
-class EngListener(ActionListener):
-    """
-    Updates the engagementID field based on the selection from the ComboBox
-    """
-
-    def __init__(self, data):
-        self.a = data
-
-    def actionPerformed(self, e):
-        cmd = e.getActionCommand()
-        if cmd == 'comboBoxChanged':
-            selected = self.a._engagementName.selectedIndex
-            if selected >= 0:
-                self.a._engagementID.setText(
-                    str(self.a.engagements.data['objects'][selected]['id']))
-                start_new_thread(self.a.getTests, (e,))
-
-
-class TestListener(ActionListener):
-    """
-    Updates the testID field based on the selection from the ComboBox
-    """
-
-    def __init__(self, data):
-        self.a = data
-
-    def actionPerformed(self, e):
-        cmd = e.getActionCommand()
-        if cmd == 'comboBoxChanged':
-            selected = self.a._testName.selectedIndex
-            if selected >= 0:
-                self.a._testID.setText(
-                    str(self.a.tests.data['objects'][selected]['id']))
-
-
-class IssListener(MouseAdapter):
-    """
-    Listener used to update the list of issues in the Defect Dojo tab when a target is double clicked
-    """
-
-    def __init__(self, data):
-        self.a = data
-
-    def mouseClicked(self, e):
-        cmd = e.getClickCount()
-        if cmd == 2:
-            self.a.issNames.removeAllElements()
-            del self.a._issList[:]
-            for i in self.a._callbacks.getScanIssues(self.a._listTargets.getSelectedValue()):
-                self.a._issList.append(i)
-            for i in self.a._issList:
-                self.a.issNames.addElement(i.getIssueName())
+__author__ = 'Alexandru Dracea'
 
 
 class BurpExtender(IBurpExtender, ITab):
@@ -124,8 +57,7 @@ class BurpExtender(IBurpExtender, ITab):
         self._defectDojoURL.setBounds(105, 15, 155, 30)
         self._labelApiKey = JLabel("API Key :")
         self._labelApiKey.setBounds(15, 45, 100, 30)
-        self._apiKey = JTextField(
-            "1dfdfa2042567ec751f6b3fa96038b743ea6f1cc")
+        self._apiKey = JTextField("1dfdfa2042567ec751f6b3fa96038b743ea6f1cc")
         self._apiKey.setBounds(105, 45, 155, 30)
         self._labelUsername = JLabel("Username :")
         self._labelUsername.setBounds(265, 15, 100, 30)
@@ -161,11 +93,11 @@ class BurpExtender(IBurpExtender, ITab):
         self._testName.addActionListener(self.testMan)
         self._search = JTextField(40)
         self._search.setBounds(265, 75, 100, 30)
-        self._searchProductButton = JButton(
-            'Search Product', actionPerformed=self.getProducts)
+        self._searchProductButton = JButton('Search Product',
+                                            actionPerformed=self.getProducts)
         self._searchProductButton.setBounds(370, 75, 100, 30)
-        self._sendIssueButton = JButton(
-            'Send Issue', actionPerformed=self.sendIssue)
+        self._sendIssueButton = JButton('Send Issue',
+                                        actionPerformed=self.sendIssue)
         self._sendIssueButton.setBounds(465, 135, 100, 30)
         self._targets = self._callbacks.getSiteMap(None)
         self._tgts = DefaultListModel()
@@ -184,8 +116,8 @@ class BurpExtender(IBurpExtender, ITab):
         self._scrollList = JScrollPane(self._listTargets)
         self._listTargets.setBounds(15, 175, 300, 100)
         self._scrollList.setBounds(15, 175, 300, 100)
-        self._targetsRefButton = JButton(
-            'Refresh Targets', actionPerformed=self.refTargets)
+        self._targetsRefButton = JButton('Refresh Targets',
+                                         actionPerformed=self.refTargets)
         self._targetsRefButton.setBounds(15, 275, 100, 30)
         self._scrollIssList = JScrollPane(self._listTargetIss)
         self._listTargetIss.setBounds(325, 175, 300, 100)
@@ -213,8 +145,8 @@ class BurpExtender(IBurpExtender, ITab):
         self._panel.add(self._search)
         self._panel.add(self._searchProductButton)
         self._panel.add(self._labelSearch)
-        self.sender = HttpData(self._defectDojoURL.getText(
-        ), self._user.getText(), self._apiKey.getText())
+        self.sender = HttpData(self._defectDojoURL.getText(),
+                               self._user.getText(), self._apiKey.getText())
         self.contextMenu = SendToDojo(self)
         self.contextMenu2 = SendReportToDojo(self)
         callbacks.registerContextMenuFactory(self.contextMenu)
@@ -244,7 +176,8 @@ class BurpExtender(IBurpExtender, ITab):
 
     def getProducts(self, event):
         """
-        Updates the list of products from the API , and also makes the call to retreive the userId behind the scenes .
+        Updates the list of products from the API , and also makes the call
+        to retreive the userId behind the scenes .
         """
         self._productName.removeAllItems()
         start_new_thread(self.doGetProducts, ())
@@ -252,10 +185,12 @@ class BurpExtender(IBurpExtender, ITab):
     def doGetProducts(self):
         self.checkUpdateSender()
         self.sender.makeRequest(
-            'GET', '/api/v1/products/?name__icontains=' + self._helpers.urlEncode(self._search.getText()))
+            'GET', '/api/v1/products/?name__icontains=' +
+            self._helpers.urlEncode(self._search.getText()))
         data = self.sender.req_data
-        test = DefectDojoResponse(
-            message="Done", data=json.loads(data), success=True)
+        test = DefectDojoResponse(message="Done",
+                                  data=json.loads(data),
+                                  success=True)
         self.products = test
         for objects in test.data['objects']:
             self._productName.addItem(objects['name'])
@@ -270,11 +205,14 @@ class BurpExtender(IBurpExtender, ITab):
 
     def doGetEngagements(self):
         self.checkUpdateSender()
-        self.sender.makeRequest('GET', '/api/v1/engagements/?product='
-                                + self._helpers.urlEncode(self._productID.getText())+'&status=In%20Progress')
+        self.sender.makeRequest(
+            'GET', '/api/v1/engagements/?product=' +
+            self._helpers.urlEncode(self._productID.getText()) +
+            '&status=In%20Progress')
         data = self.sender.req_data
-        test = DefectDojoResponse(
-            message="Done", data=json.loads(data), success=True)
+        test = DefectDojoResponse(message="Done",
+                                  data=json.loads(data),
+                                  success=True)
         self.engagements = test
         if test.data:
             for objects in test.data['objects']:
@@ -282,7 +220,8 @@ class BurpExtender(IBurpExtender, ITab):
 
     def getTests(self, event):
         """
-        Updates the list containing test names based on test_type+date created so that there is some visual indicator .
+        Updates the list containing test names based on test_type+date created
+        so that there is some visual indicator .
         """
         self._testName.removeAllItems()
         self.checkUpdateSender()
@@ -290,11 +229,13 @@ class BurpExtender(IBurpExtender, ITab):
 
     def doGetTests(self):
         self.checkUpdateSender()
-        self.sender.makeRequest('GET', '/api/v1/tests/?engagement='
-                                + self._helpers.urlEncode(self._engagementID.getText()))
+        self.sender.makeRequest(
+            'GET', '/api/v1/tests/?engagement=' +
+            self._helpers.urlEncode(self._engagementID.getText()))
         data = self.sender.req_data
-        test = DefectDojoResponse(
-            message="Done", data=json.loads(data), success=True)
+        test = DefectDojoResponse(message="Done",
+                                  data=json.loads(data),
+                                  success=True)
         self.tests = test
         if test.data:
             for objects in test.data['objects']:
@@ -305,15 +246,17 @@ class BurpExtender(IBurpExtender, ITab):
         self.checkUpdateSender()
         self.sender.makeRequest('GET', '/api/v1/users/')
         data = self.sender.req_data
-        test = DefectDojoResponse(
-            message="Done", data=json.loads(data), success=True)
+        test = DefectDojoResponse(message="Done",
+                                  data=json.loads(data),
+                                  success=True)
         for objects in test.data['objects']:
             if self._user.getText() == objects['username']:
                 self._userID = objects['id']
 
     def sendAsReport(self, event):
         """
-        This sends selected issues(>=1) to Defect Dojo bundled as a report , this will mean that they will be imported into a new test each time .
+        This sends selected issues(>=1) to Defect Dojo bundled as a report ,
+        this will mean that they will be imported into a new test each time .
         """
         if hasattr(self, '_userID'):
             pass
@@ -322,49 +265,78 @@ class BurpExtender(IBurpExtender, ITab):
         f = RelativeFile("Scan.xml")
         f.createNewFile()
         if event.getActionCommand() == "Send All Issues to Defect Dojo":
-            issues = None
             ctr = 0
             for urls in self.contextMenu._invoker.getSelectedMessages():
-                if ctr == 0:
-                    issues = self._callbacks.getScanIssues(str(urls.getUrl()))
+                url = ""
+                if urls.getHttpService().getProtocol(
+                ) == 'http' and urls.getHttpService().getPort() == 80:
+                    url_loc = str(urls.getUrl()).split('/')
+                    url = "http://" + urls.getHttpService().getHost(
+                    ) + '/' + url_loc[3]
+                    print url
+                elif urls.getHttpService().getProtocol(
+                ) == 'https' and urls.getHttpService().getPort() == 443:
+                    url_loc = str(urls.getUrl()).split('/')
+                    url = "https://" + urls.getHttpService().getHost(
+                    ) + '/' + url_loc[3]
+                    print url
                 else:
-                    issues += self._callbacks.getScanIssues(str(urls.getUrl()))
+                    url = str(urls.getUrl())
+                if ctr == 0:
+                    issues = self._callbacks.getScanIssues(url)
+                    ctr += 1
+                else:
+                    for iss in self._callbacks.getScanIssues(url):
+                        issues.append(iss)
+                    ctr += 1
+            print issues
             self._callbacks.generateScanReport("XML", issues, f)
         else:
             self._callbacks.generateScanReport(
                 "XML", self.contextMenu._invoker.getSelectedIssues(), f)
-        ct_boundry = ''.join(random.SystemRandom().choice(
-            string.hexdigits) for _ in range(30))
-        self.sender.headers['Content-Type'] = 'multipart/form-data; boundary=----------'+ct_boundry
+        ct_boundry = ''.join(random.SystemRandom().choice(string.hexdigits)
+                             for _ in range(30))
+        self.sender.headers[
+            'Content-Type'] = 'multipart/form-data; boundary=----------' \
+            + ct_boundry
         import datetime
         now = datetime.datetime.now()
         content = {
-            'build_id': "",
-            "minimum_severity": "Info",
-            "scan_date": "%d-%d-%d" % (now.year, now.month, now.day),
-            "tags": "BurpPlugin",
-            "active": "true",
-            "verified": "true",
-            "engagement": '/api/v1/engagements/' + self._helpers.urlEncode(self._engagementID.getText()) + '/',
-            'scan_type': 'Burp Scan'
+            'build_id':
+            "",
+            "minimum_severity":
+            "Info",
+            "scan_date":
+            "%d-%d-%d" % (now.year, now.month, now.day),
+            "tags":
+            "BurpPlugin",
+            "active":
+            "true",
+            "verified":
+            "true",
+            "engagement":
+            '/api/v1/engagements/' +
+            self._helpers.urlEncode(self._engagementID.getText()) + '/',
+            'scan_type':
+            'Burp Scan'
         }
         nl = '\r\n'
         data = []
         for (key, value) in content.iteritems():
-            data.append('------------'+ct_boundry)
+            data.append('------------' + ct_boundry)
             data.append('Content-Disposition: form-data; name="%s";' % (key))
             data.append('')
             data.append(value)
-        data.append('------------'+ct_boundry)
+        data.append('------------' + ct_boundry)
         data.append(
             'Content-Disposition: form-data;name="file"; filename="Scan.xml";')
         data.append('Content-Type: application/xml')
         data.append('')
-        with open("./Scan.xml")as a:
+        with open("./Scan.xml") as a:
             for line in a:
                 data.append(line.encode('utf8', 'replace'))
         os.remove("./Scan.xml")
-        data.append('------------'+ct_boundry+'--')
+        data.append('------------' + ct_boundry + '--')
         body_s = nl.join(data)
         data2 = open("./Data.txt", "w")
         data2.write(body_s)
@@ -376,8 +348,10 @@ class BurpExtender(IBurpExtender, ITab):
 
     def sendIssue(self, event):
         """
-        This sends selected issues(>=1) to Defect Dojo be they selected from the Defect Dojo Tab or the Context Menu in the Target Tab .
-        Due to the current limitations in Defect Dojo API request/response pairs cannot be added *yet* .
+        This sends selected issues(>=1) to Defect Dojo be they selected from
+        the Defect Dojo Tab or the Context Menu in the Target Tab .
+        Due to the current limitations in Defect Dojo API request/response
+        pairs cannot be added *yet* .
         """
         if hasattr(self, '_userID'):
             pass
@@ -394,7 +368,8 @@ class BurpExtender(IBurpExtender, ITab):
             if event.getActionCommand() == 'Send To Defect Dojo':
                 title = issues[i].getIssueName()
                 description = issues[i].getIssueDetail(
-                ) if issues[i].getIssueDetail() else issues[i].getIssueBackground()
+                ) if issues[i].getIssueDetail(
+                ) else issues[i].getIssueBackground()
                 severity = issues[i].getSeverity()
                 if severity == 'Information' or severity == 'Informational':
                     severity = "Info"
@@ -406,59 +381,86 @@ class BurpExtender(IBurpExtender, ITab):
                 else:
                     mitigation = str(issues[i].getIssueType())
                 for mess in issues[i].getHttpMessages():
-                    ureqresp.append({"req": self._helpers.bytesToString(
-                        mess.getRequest()), "resp": self._helpers.bytesToString(mess.getResponse())})
+                    ureqresp.append({
+                        "req":
+                        self._helpers.bytesToString(mess.getRequest()),
+                        "resp":
+                        self._helpers.bytesToString(mess.getResponse())
+                    })
                 url = str(issues[i].getUrl())
             elif event.getActionCommand() == 'Send Issue':
                 title = self._issList[issues[i]].getIssueName()
                 description = self._issList[issues[i]].getIssueDetail(
-                ) if self._issList[issues[i]].getIssueDetail() else self._issList[issues[i]].getIssueBackground()
+                ) if self._issList[issues[i]].getIssueDetail(
+                ) else self._issList[issues[i]].getIssueBackground()
                 severity = self._issList[issues[i]].getSeverity()
                 if severity == 'Information' or severity == 'Informational':
                     severity = "Info"
                 impact = self._issList[issues[i]].getIssueBackground()
                 if self._issList[issues[i]].getRemediationBackground():
-                    mitigation = self._issList[issues[i]
-                                               ].getRemediationBackground() + '\n'
+                    mitigation = self._issList[
+                        issues[i]].getRemediationBackground() + '\n'
                     if self._issList[issues[i]].getRemediationDetail():
-                        mitigation += self._issList[issues[i]
-                                                    ].getRemediationDetail()
+                        mitigation += self._issList[
+                            issues[i]].getRemediationDetail()
                 else:
                     mitigation = str(self._issList[issues[i]].getIssueType())
                 for mess in self._issList[issues[i]].getHttpMessages():
-                    ureqresp.append({"req": self._helpers.bytesToString(
-                        mess.getRequest()), "resp": self._helpers.bytesToString(mess.getResponse())})
+                    ureqresp.append({
+                        "req":
+                        self._helpers.bytesToString(mess.getRequest()),
+                        "resp":
+                        self._helpers.bytesToString(mess.getResponse())
+                    })
                 url = str(self._issList[issues[i]].getUrl())
-            description=html2text(description)
-            impact=html2text(impact)
-            mitigation=html2text(mitigation)
+            description = html2text(description)
+            impact = html2text(impact)
+            mitigation = html2text(mitigation)
             try:
                 json.loads(description)
             except:
-                description = description.replace("\'","")
+                description = description.replace("\'", "")
             try:
                 json.loads(impact)
             except:
-                impact = impact.replace("\'","")
+                impact = impact.replace("\'", "")
             try:
                 json.loads(mitigation)
             except:
-                mitigation = mitigation.replace("\'","")
+                mitigation = mitigation.replace("\'", "")
             data = {
-                'title': title,
-                'description': description,
-                'severity': severity,
-                'product': '/api/v1/products/' + self._helpers.urlEncode(self._productID.getText()) + '/',
-                'engagement': '/api/v1/engagements/' + self._helpers.urlEncode(self._engagementID.getText()) + '/',
-                'reporter': '/api/v1/users/' + self._helpers.urlEncode(str(self._userID)) + '/',
-                'test': '/api/v1/tests/' + self._helpers.urlEncode(self._testID.getText()) + '/',
-                'impact': impact,
-                'active': True,
-                'verified': True,
-                'mitigation': mitigation,
-                'static_finding': False,
-                'dynamic_finding': False,
-                'file_path': url
+                'title':
+                title,
+                'description':
+                description,
+                'severity':
+                severity,
+                'product':
+                '/api/v1/products/' +
+                self._helpers.urlEncode(self._productID.getText()) + '/',
+                'engagement':
+                '/api/v1/engagements/' +
+                self._helpers.urlEncode(self._engagementID.getText()) + '/',
+                'reporter':
+                '/api/v1/users/' + self._helpers.urlEncode(str(self._userID)) +
+                '/',
+                'test':
+                '/api/v1/tests/' +
+                self._helpers.urlEncode(self._testID.getText()) + '/',
+                'impact':
+                impact,
+                'active':
+                True,
+                'verified':
+                True,
+                'mitigation':
+                mitigation,
+                'static_finding':
+                False,
+                'dynamic_finding':
+                False,
+                'file_path':
+                url
                 # 'steps_to_reproduce': ureqresp
             }
             data = json.dumps(data)
@@ -467,7 +469,8 @@ class BurpExtender(IBurpExtender, ITab):
                              ('POST', '/api/v1/findings/', data))
 
     def checkUpdateSender(self):
-        if self.sender.ddurl != self._defectDojoURL.getText().lower().split('://'):
+        if self.sender.ddurl != self._defectDojoURL.getText().lower().split(
+                '://'):
             self.sender.setUrl(self._defectDojoURL.getText())
         if self.sender.user != self._user.getText():
             self.sender.setUser(self._user.getText())
@@ -496,7 +499,7 @@ class HttpData():
 
     def setApiKey(self, apikey):
         self.apikey = apikey
-        self.headers['Authorization'] = "ApiKey "+self.user+":"+apikey
+        self.headers['Authorization'] = "ApiKey " + self.user + ":" + apikey
 
     def setUser(self, user):
         self.user = user
@@ -524,47 +527,6 @@ class HttpData():
         return
 
 
-class SendToDojo(IContextMenuFactory):
-    """
-    SendToDojo implements the class needed to create the context menu when rightclicking an issue .
-    """
-
-    def __init__(self, data):
-        self.a = data
-
-    def createMenuItems(self, invoker):
-        self._invoker = invoker
-        context = self._invoker.getInvocationContext()
-        if not context == self._invoker.CONTEXT_SCANNER_RESULTS:
-            return None
-        self.selection = JMenuItem(
-            "Send To Defect Dojo", actionPerformed=self.a.sendIssue)
-        return [self.selection]
-
-
-class SendReportToDojo(IContextMenuFactory):
-    """
-    SendReportToDojo implements the class needed to create the context menu when rightclicking an issue(s) in order to send them as a report to Defect Dojo .
-    """
-
-    def __init__(self, data):
-        self.a = data
-
-    def createMenuItems(self, invoker):
-        self._invoker = invoker
-        context = self._invoker.getInvocationContext()
-        if not (context == self._invoker.CONTEXT_SCANNER_RESULTS or context == self._invoker.CONTEXT_TARGET_SITE_MAP_TREE):
-            return None
-        if context == self._invoker.CONTEXT_SCANNER_RESULTS:
-            self.selection = JMenuItem(
-                "Send Report To Defect Dojo", actionPerformed=self.a.sendAsReport)
-            return [self.selection]
-        else:
-            self.selection = JMenuItem(
-                "Send All Issues to Defect Dojo", actionPerformed=self.a.sendAsReport)
-            return [self.selection]
-
-
 class DefectDojoResponse(object):
     """
     Container for all DefectDojo API responses, even errors.
@@ -584,8 +546,8 @@ class DefectDojoResponse(object):
 
     def id(self):
         if self.response_code == 400:  # Bad Request
-            raise ValueError('Object not created:' + json.dumps(self.data,
-                                                                sort_keys=True, indent=4, separators=(',', ': ')))
+            raise ValueError('Object not created:' + json.dumps(
+                self.data, sort_keys=True, indent=4, separators=(',', ': ')))
         return int(self.data)
 
     def count(self):
@@ -594,40 +556,9 @@ class DefectDojoResponse(object):
     def data_json(self, pretty=False):
         """Returns the data as a valid JSON string."""
         if pretty:
-            return json.dumps(self.data, sort_keys=True, indent=4, separators=(',', ': '))
+            return json.dumps(self.data,
+                              sort_keys=True,
+                              indent=4,
+                              separators=(',', ': '))
         else:
             return json.dumps(self.data)
-
-
-def html2text(strText):
-    html = str(strText).encode('utf8','replace')
-    int2 = html.lower().find("<body")
-    if int2 > 0:
-        html = html[int2:]
-    int2 = html.lower().find("</body>")
-    if int2 > 0:
-        html = html[:int2]
-    list1 = ['<br>',  '<tr',  '<td', '</p>', 'span>', 'li>', '</h', 'div>']
-    list2 = [chr(13), chr(13), chr(9), chr(
-        13), chr(13),  chr(13), chr(13), chr(13)]
-    f1 = True
-    f2 = True
-    toText = ""
-    for int1 in range(len(html)):
-        str2 = html[int1]
-        for int2 in range(len(list1)):
-            if html[int1:int1+len(list1[int2])].lower() == list1[int2]:
-                toText = toText + list2[int2]
-        if str2 == '<':
-            f2 = False
-        if f1 and f2 and (ord(str2) != 10):
-            toText = toText + str2
-        if str2 == '>':
-            f2 = True
-        if f1 and f2:
-            toText = toText.replace(chr(32)+chr(13), chr(13))
-            toText = toText.replace(chr(9)+chr(13), chr(13))
-            toText = toText.replace(chr(13)+chr(32), chr(13))
-            toText = toText.replace(chr(13)+chr(9), chr(13))
-            toText = toText.replace(chr(13)+chr(13), chr(13))
-    return toText
