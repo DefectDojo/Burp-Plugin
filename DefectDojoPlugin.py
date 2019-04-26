@@ -15,7 +15,7 @@ from jarray import array
 from java.util import ArrayList
 import javax.swing.Action
 from java.util import List
-from javax.swing import JScrollPane
+from javax.swing import JScrollPane, GroupLayout, LayoutStyle
 from javax.swing import JSplitPane
 from javax.swing import JTabbedPane
 from javax.swing import JTable
@@ -23,7 +23,7 @@ from javax.swing import JPanel
 from javax.swing import JLabel
 from javax.swing import JMenuItem
 from javax.swing import DefaultListModel
-from javax.swing import JList,JOptionPane
+from javax.swing import JList, JOptionPane
 from javax.swing import JTextField
 from javax.swing import JComboBox
 from javax.swing import JButton
@@ -35,12 +35,202 @@ import string
 import ssl
 import time
 import json
+import sys
 import os
 import httplib
-from utils import EngListener, ProdListener, TestListener, IssListener
+from utils import EngListener, ProdListener, TestListener
 from utils import SendReportToDojo, SendToDojo, html2text, ClickableLink
 
 __author__ = 'Alexandru Dracea'
+
+
+class DDTabUi():
+    def __init__(self, ext):
+        self._panel = JPanel()
+        layout = GroupLayout(self._panel)
+        innerPanel = JPanel()
+        innerPanelLayout = GroupLayout(innerPanel)
+        self._panel.setLayout(layout)
+        innerPanel.setLayout(innerPanelLayout)
+        self.labelDojoURL = JLabel("Defect Dojo :")
+        self.defectDojoURL = JTextField("https://defectdojo.herokuapp.com")
+        self.labelApiKey = JLabel("API Key :")
+        self.apiKey = JTextField("1dfdfa2042567ec751f6b3fa96038b743ea6f1cc")
+        self.labelUsername = JLabel("Username :")
+        self.user = JTextField("admin")
+        self.labelProductID = JLabel("Product :")
+        self.productID = JTextField(focusLost=ext.getEngagements)
+        self.labelProductName = JLabel("Product Name :")
+        self.productName = JComboBox()
+        self.prodMan = ProdListener(ext)
+        self.productName.addActionListener(self.prodMan)
+        self.labelEngagementID = JLabel("Engagement :")
+        self.engagementID = JTextField(focusLost=ext.getTests)
+        self.engagementName = JComboBox()
+        self.engMan = EngListener(ext)
+        self.engagementName.addActionListener(self.engMan)
+        self.labelTestID = JLabel("Test :")
+        self.testID = JTextField()
+        self.testName = JComboBox()
+        self.testMan = TestListener(ext)
+        self.testName.addActionListener(self.testMan)
+        self.search = JTextField()
+        self.searchProductButton = JButton('Search Product',
+                                           actionPerformed=ext.getProducts)
+        innerPanelLayout.setHorizontalGroup(
+            innerPanelLayout.createParallelGroup().addGroup(
+                GroupLayout.Alignment.TRAILING,
+                innerPanelLayout.createSequentialGroup().addContainerGap().
+                addGroup(
+                    innerPanelLayout.createParallelGroup(
+                        GroupLayout.Alignment.TRAILING).
+                    addGroup(innerPanelLayout.createParallelGroup().addGroup(
+                        innerPanelLayout.createParallelGroup(
+                            GroupLayout.Alignment.TRAILING).addGroup(
+                                innerPanelLayout.createParallelGroup(
+                                    GroupLayout.Alignment.TRAILING).addGroup(
+                                        innerPanelLayout.createSequentialGroup(
+                                        ).addComponent(
+                                            self.labelUsername,
+                                            GroupLayout.PREFERRED_SIZE, 168,
+                                            GroupLayout.PREFERRED_SIZE).addGap(
+                                                105, 105, 105)).
+                                addComponent(self.labelProductName,
+                                             GroupLayout.Alignment.LEADING,
+                                             GroupLayout.PREFERRED_SIZE, 168,
+                                             GroupLayout.PREFERRED_SIZE)).
+                        addGroup(
+                            GroupLayout.Alignment.LEADING,
+                            innerPanelLayout.createSequentialGroup().addGroup(
+                                innerPanelLayout.createParallelGroup(
+                                    GroupLayout.Alignment.TRAILING).
+                                addComponent(
+                                    self.labelEngagementID,
+                                    GroupLayout.Alignment.LEADING,
+                                    GroupLayout.PREFERRED_SIZE, 168,
+                                    GroupLayout.PREFERRED_SIZE).addComponent(
+                                        self.labelDojoURL,
+                                        GroupLayout.Alignment.LEADING,
+                                        GroupLayout.PREFERRED_SIZE, 168,
+                                        GroupLayout.PREFERRED_SIZE)).
+                            addPreferredGap(
+                                LayoutStyle.ComponentPlacement.RELATED))
+                    ).addGroup(innerPanelLayout.createSequentialGroup(
+                    ).addGroup(
+                        innerPanelLayout.createParallelGroup().addComponent(
+                            self.labelTestID, GroupLayout.PREFERRED_SIZE, 168,
+                            GroupLayout.PREFERRED_SIZE).addComponent(
+                                self.searchProductButton,
+                                GroupLayout.PREFERRED_SIZE, 269,
+                                GroupLayout.PREFERRED_SIZE)).addPreferredGap(
+                                    LayoutStyle.ComponentPlacement.RELATED))).
+                    addGroup(
+                        GroupLayout.Alignment.LEADING,
+                        innerPanelLayout.createSequentialGroup().addComponent(
+                            self.labelApiKey, GroupLayout.PREFERRED_SIZE, 168,
+                            GroupLayout.PREFERRED_SIZE).addPreferredGap(
+                                LayoutStyle.ComponentPlacement.RELATED))).
+                addGroup(innerPanelLayout.createParallelGroup().addGroup(
+                    innerPanelLayout.createSequentialGroup().addComponent(
+                        self.engagementID, GroupLayout.PREFERRED_SIZE, 36,
+                        GroupLayout.PREFERRED_SIZE).addGap(
+                            18, 18,
+                            18).addComponent(self.engagementName,
+                                             GroupLayout.PREFERRED_SIZE, 260,
+                                             GroupLayout.PREFERRED_SIZE)
+                ).addGroup(innerPanelLayout.createSequentialGroup().addGap(
+                    54, 54, 54).addGroup(
+                        innerPanelLayout.createParallelGroup().addComponent(
+                            self.defectDojoURL, GroupLayout.PREFERRED_SIZE,
+                            260, GroupLayout.PREFERRED_SIZE).addComponent(
+                                self.apiKey, GroupLayout.PREFERRED_SIZE, 260,
+                                GroupLayout.PREFERRED_SIZE).addComponent(
+                                    self.user, GroupLayout.PREFERRED_SIZE, 260,
+                                    GroupLayout.PREFERRED_SIZE).addComponent(
+                                        self.productName,
+                                        GroupLayout.PREFERRED_SIZE, 260,
+                                        GroupLayout.PREFERRED_SIZE)
+                    )).addGroup(
+                        innerPanelLayout.createSequentialGroup().addComponent(
+                            self.testID, GroupLayout.PREFERRED_SIZE, 36,
+                            GroupLayout.PREFERRED_SIZE).addGap(18, 18, 18).
+                        addGroup(innerPanelLayout.createParallelGroup(
+                        ).addComponent(
+                            self.search, GroupLayout.PREFERRED_SIZE, 260,
+                            GroupLayout.PREFERRED_SIZE).addComponent(
+                                self.testName, GroupLayout.PREFERRED_SIZE, 260,
+                                GroupLayout.PREFERRED_SIZE)))).addGap(
+                                    348, 348, 348)))
+        innerPanelLayout.setVerticalGroup(innerPanelLayout.createParallelGroup(
+        ).addGroup(innerPanelLayout.createSequentialGroup().addContainerGap(
+        ).addGroup(
+            innerPanelLayout.createParallelGroup(
+                GroupLayout.Alignment.LEADING,
+                False).addComponent(self.defectDojoURL).addComponent(
+                    self.labelDojoURL, GroupLayout.DEFAULT_SIZE,
+                    GroupLayout.DEFAULT_SIZE, sys.maxint)
+        ).addPreferredGap(LayoutStyle.ComponentPlacement.RELATED).addGroup(
+            innerPanelLayout.createParallelGroup(
+                GroupLayout.Alignment.BASELINE).addComponent(
+                    self.apiKey, GroupLayout.PREFERRED_SIZE,
+                    GroupLayout.DEFAULT_SIZE,
+                    GroupLayout.PREFERRED_SIZE).addComponent(
+                        self.labelApiKey, GroupLayout.PREFERRED_SIZE, 19,
+                        GroupLayout.PREFERRED_SIZE)
+        ).addPreferredGap(LayoutStyle.ComponentPlacement.RELATED).addGroup(
+            innerPanelLayout.createParallelGroup(
+                GroupLayout.Alignment.BASELINE).addComponent(
+                    self.user, GroupLayout.PREFERRED_SIZE,
+                    GroupLayout.DEFAULT_SIZE,
+                    GroupLayout.PREFERRED_SIZE).addComponent(
+                        self.labelUsername, GroupLayout.PREFERRED_SIZE, 19,
+                        GroupLayout.PREFERRED_SIZE)
+        ).addPreferredGap(LayoutStyle.ComponentPlacement.RELATED).addGroup(
+            innerPanelLayout.createParallelGroup(
+                GroupLayout.Alignment.BASELINE).addComponent(
+                    self.productName, GroupLayout.PREFERRED_SIZE,
+                    GroupLayout.DEFAULT_SIZE,
+                    GroupLayout.PREFERRED_SIZE).addComponent(
+                        self.labelProductName, GroupLayout.PREFERRED_SIZE, 19,
+                        GroupLayout.PREFERRED_SIZE)
+        ).addPreferredGap(LayoutStyle.ComponentPlacement.RELATED).addGroup(
+            innerPanelLayout.createParallelGroup(
+                GroupLayout.Alignment.BASELINE).addComponent(
+                    self.engagementName, GroupLayout.PREFERRED_SIZE,
+                    GroupLayout.DEFAULT_SIZE,
+                    GroupLayout.PREFERRED_SIZE).addComponent(
+                        self.engagementID, GroupLayout.PREFERRED_SIZE,
+                        GroupLayout.DEFAULT_SIZE,
+                        GroupLayout.PREFERRED_SIZE).addComponent(
+                            self.labelEngagementID, GroupLayout.PREFERRED_SIZE,
+                            19, GroupLayout.PREFERRED_SIZE)
+        ).addPreferredGap(LayoutStyle.ComponentPlacement.RELATED).addGroup(
+            innerPanelLayout.createParallelGroup(
+                GroupLayout.Alignment.BASELINE).addComponent(
+                    self.testName, GroupLayout.PREFERRED_SIZE,
+                    GroupLayout.DEFAULT_SIZE,
+                    GroupLayout.PREFERRED_SIZE).addComponent(
+                        self.testID, GroupLayout.PREFERRED_SIZE,
+                        GroupLayout.DEFAULT_SIZE,
+                        GroupLayout.PREFERRED_SIZE).addComponent(
+                            self.labelTestID, GroupLayout.PREFERRED_SIZE, 19,
+                            GroupLayout.PREFERRED_SIZE)
+        ).addPreferredGap(LayoutStyle.ComponentPlacement.RELATED).addGroup(
+            innerPanelLayout.createParallelGroup(
+                GroupLayout.Alignment.LEADING, False).addComponent(
+                    self.search, GroupLayout.DEFAULT_SIZE,
+                    GroupLayout.DEFAULT_SIZE, sys.maxint).addComponent(
+                        self.searchProductButton)).addContainerGap(
+                            131, sys.maxint)))
+        layout.setHorizontalGroup(layout.createParallelGroup().addGroup(
+            layout.createSequentialGroup().addComponent(
+                innerPanel, GroupLayout.PREFERRED_SIZE, 633,
+                GroupLayout.PREFERRED_SIZE).addGap(0, 312, sys.maxint)))
+        layout.setVerticalGroup(layout.createParallelGroup().addGroup(
+            layout.createSequentialGroup().addComponent(
+                innerPanel, GroupLayout.PREFERRED_SIZE,
+                GroupLayout.DEFAULT_SIZE,
+                GroupLayout.PREFERRED_SIZE).addGap(0, 199, sys.maxint)))
 
 
 class BurpExtender(IBurpExtender, ITab):
@@ -48,182 +238,74 @@ class BurpExtender(IBurpExtender, ITab):
         self._callbacks = callbacks
         self._helpers = callbacks.getHelpers()
         callbacks.setExtensionName("Defect Dojo")
-        self._panel = JPanel()
-        self._panel.setLayout(None)
-        self._panel.setPreferredSize(Dimension(1368, 1368))
-        self._labelDojoURL = JLabel("Defect Dojo :")
-        self._labelDojoURL.setBounds(15, 15, 100, 30)
-        self._defectDojoURL = JTextField("https://defectdojo.herokuapp.com")
-        self._defectDojoURL.setBounds(105, 15, 155, 30)
-        self._labelApiKey = JLabel("API Key :")
-        self._labelApiKey.setBounds(15, 45, 100, 30)
-        self._apiKey = JTextField("1dfdfa2042567ec751f6b3fa96038b743ea6f1cc")
-        self._apiKey.setBounds(105, 45, 155, 30)
-        self._labelUsername = JLabel("Username :")
-        self._labelUsername.setBounds(265, 15, 100, 30)
-        self._user = JTextField("admin")
-        self._user.setBounds(370, 15, 100, 30)
-        self._labelProductID = JLabel("Product ID :")
-        self._labelProductID.setBounds(15, 75, 125, 30)
-        self._productID = JTextField(focusLost=self.getEngagements)
-        self._productID.setBounds(105, 75, 50, 30)
-        self._labelProductName = JLabel("Product Name :")
-        self._labelProductName.setBounds(265, 45, 100, 30)
-        self._productName = JComboBox()
-        self._productName.setBounds(370, 45, 100, 30)
-        self._labelEngagementID = JLabel("Engagement ID :")
-        self._labelEngagementID.setBounds(15, 100, 125, 30)
-        self._engagementID = JTextField(40, focusLost=self.getTests)
-        self._engagementID.setBounds(105, 105, 50, 30)
-        self._labelTestID = JLabel("Test ID :")
-        self._labelTestID.setBounds(15, 135, 125, 30)
-        self._testID = JTextField()
-        self._testID.setBounds(105, 135, 50, 30)
-        self._testName = JComboBox()
-        self._testName.setBounds(160, 135, 300, 30)
-        self._labelSearch = JLabel("Search Product :")
-        self._labelSearch.setBounds(160, 75, 100, 30)
-        self.prodMan = ProdListener(self)
-        self.engMan = EngListener(self)
-        self.testMan = TestListener(self)
-        self._engagementName = JComboBox()
-        self._engagementName.setBounds(160, 105, 300, 30)
-        self._productName.addActionListener(self.prodMan)
-        self._engagementName.addActionListener(self.engMan)
-        self._testName.addActionListener(self.testMan)
-        self._search = JTextField(40)
-        self._search.setBounds(265, 75, 100, 30)
-        self._searchProductButton = JButton('Search Product',
-                                            actionPerformed=self.getProducts)
-        self._searchProductButton.setBounds(370, 75, 100, 30)
-        self._sendIssueButton = JButton('Send Issue',
-                                        actionPerformed=self.sendIssue)
-        self._sendIssueButton.setBounds(465, 135, 100, 30)
-        self._targets = self._callbacks.getSiteMap(None)
-        self._tgts = DefaultListModel()
-        tgts = set([])
-        for i, resps in enumerate(self._targets):
-            tgts.add(str(resps.getHttpService()))
-        tgts = list(tgts)
-        for targets in tgts:
-            self._tgts.addElement(targets)
-        self._listTargets = JList(self._tgts)
-        self.issMan = IssListener(self)
-        self._listTargets.addMouseListener(self.issMan)
-        self._issList = []
-        self.issNames = DefaultListModel()
-        self._listTargetIss = JList(self.issNames)
-        self._scrollList = JScrollPane(self._listTargets)
-        self._listTargets.setBounds(15, 175, 300, 100)
-        self._scrollList.setBounds(15, 175, 300, 100)
-        self._targetsRefButton = JButton('Refresh Targets',
-                                         actionPerformed=self.refTargets)
-        self._targetsRefButton.setBounds(15, 275, 100, 30)
-        self._scrollIssList = JScrollPane(self._listTargetIss)
-        self._listTargetIss.setBounds(325, 175, 300, 100)
-        self._scrollIssList.setBounds(325, 175, 300, 100)
-        self._panel.add(self._labelDojoURL)
-        self._panel.add(self._defectDojoURL)
-        self._panel.add(self._scrollList)
-        self._panel.add(self._targetsRefButton)
-        self._panel.add(self._scrollIssList)
-        self._panel.add(self._labelApiKey)
-        self._panel.add(self._apiKey)
-        self._panel.add(self._labelProductID)
-        self._panel.add(self._productID)
-        self._panel.add(self._testName)
-        self._panel.add(self._labelUsername)
-        self._panel.add(self._user)
-        self._panel.add(self._labelProductName)
-        self._panel.add(self._productName)
-        self._panel.add(self._engagementName)
-        self._panel.add(self._labelEngagementID)
-        self._panel.add(self._engagementID)
-        self._panel.add(self._labelTestID)
-        self._panel.add(self._testID)
-        self._panel.add(self._sendIssueButton)
-        self._panel.add(self._search)
-        self._panel.add(self._searchProductButton)
-        self._panel.add(self._labelSearch)
-        self.sender = HttpData(self._defectDojoURL.getText(),
-                               self._user.getText(), self._apiKey.getText())
+        self.ddui = DDTabUi(self)
+        self.sender = HttpData(self.ddui.defectDojoURL.getText(),
+                               self.ddui.user.getText(),
+                               self.ddui.apiKey.getText())
         self.contextMenu = SendToDojo(self)
         self.contextMenu2 = SendReportToDojo(self)
         callbacks.registerContextMenuFactory(self.contextMenu)
         callbacks.registerContextMenuFactory(self.contextMenu2)
-        callbacks.customizeUiComponent(self._panel)
+        callbacks.customizeUiComponent(self.ddui._panel)
         callbacks.addSuiteTab(self)
         return
 
     def getTabCaption(self):
         return "Defect Dojo"
 
-    def refTargets(self, event):
-        """
-        Refreshes the list of targets displayed in the Defect Dojo tab
-        """
-        self._tgts.removeAllElements()
-        self._targets = self._callbacks.getSiteMap(None)
-        tgts = set([])
-        for i, resps in enumerate(self._targets):
-            tgts.add(str(resps.getHttpService()))
-        tgts = list(tgts)
-        for targets in tgts:
-            self._tgts.addElement(targets)
-
     def getUiComponent(self):
-        return self._panel
+        return self.ddui._panel
 
     def getProducts(self, event):
         """
         Updates the list of products from the API , and also makes the call
         to retreive the userId behind the scenes .
         """
-        self._productName.removeAllItems()
+        self.ddui.productName.removeAllItems()
         start_new_thread(self.doGetProducts, ())
 
     def doGetProducts(self):
         self.checkUpdateSender()
         self.sender.makeRequest(
             'GET', '/api/v1/products/?name__icontains=' +
-            self._helpers.urlEncode(self._search.getText()))
+            self._helpers.urlEncode(self.ddui.search.getText()))
         data = self.sender.req_data
         test = DefectDojoResponse(message="Done",
                                   data=json.loads(data),
                                   success=True)
-        self.products = test
+        self.ddui.products = test
         for objects in test.data['objects']:
-            self._productName.addItem(objects['name'])
+            self.ddui.productName.addItem(objects['name'])
         start_new_thread(self.getUserId, ())
 
     def getEngagements(self, event):
         """
         Updates the list of engagements from the API
         """
-        self._engagementName.removeAllItems()
+        self.ddui.engagementName.removeAllItems()
         start_new_thread(self.doGetEngagements, ())
 
     def doGetEngagements(self):
         self.checkUpdateSender()
         self.sender.makeRequest(
             'GET', '/api/v1/engagements/?product=' +
-            self._helpers.urlEncode(self._productID.getText()) +
+            self._helpers.urlEncode(self.ddui.productID.getText()) +
             '&status=In%20Progress')
         data = self.sender.req_data
         test = DefectDojoResponse(message="Done",
                                   data=json.loads(data),
                                   success=True)
-        self.engagements = test
+        self.ddui.engagements = test
         if test.data:
             for objects in test.data['objects']:
-                self._engagementName.addItem(objects['name'])
+                self.ddui.engagementName.addItem(objects['name'])
 
     def getTests(self, event):
         """
         Updates the list containing test names based on test_type+date created
         so that there is some visual indicator .
         """
-        self._testName.removeAllItems()
+        self.ddui.testName.removeAllItems()
         self.checkUpdateSender()
         start_new_thread(self.doGetTests, ())
 
@@ -231,15 +313,15 @@ class BurpExtender(IBurpExtender, ITab):
         self.checkUpdateSender()
         self.sender.makeRequest(
             'GET', '/api/v1/tests/?engagement=' +
-            self._helpers.urlEncode(self._engagementID.getText()))
+            self._helpers.urlEncode(self.ddui.engagementID.getText()))
         data = self.sender.req_data
         test = DefectDojoResponse(message="Done",
                                   data=json.loads(data),
                                   success=True)
-        self.tests = test
+        self.ddui.tests = test
         if test.data:
             for objects in test.data['objects']:
-                self._testName.addItem(
+                self.ddui.testName.addItem(
                     str(objects['test_type']) + str(objects['created']))
 
     def getUserId(self):
@@ -250,15 +332,15 @@ class BurpExtender(IBurpExtender, ITab):
                                   data=json.loads(data),
                                   success=True)
         for objects in test.data['objects']:
-            if self._user.getText() == objects['username']:
-                self._userID = objects['id']
+            if self.ddui.user.getText() == objects['username']:
+                self.ddui.userID = objects['id']
 
     def sendAsReport(self, event):
         """
         This sends selected issues(>=1) to Defect Dojo bundled as a report ,
         this will mean that they will be imported into a new test each time .
         """
-        if hasattr(self, '_userID'):
+        if hasattr(self.ddui, 'userID'):
             pass
         else:
             self.getUserId()
@@ -315,7 +397,7 @@ class BurpExtender(IBurpExtender, ITab):
             "true",
             "engagement":
             '/api/v1/engagements/' +
-            self._helpers.urlEncode(self._engagementID.getText()) + '/',
+            self._helpers.urlEncode(self.ddui.engagementID.getText()) + '/',
             'scan_type':
             'Burp Scan'
         }
@@ -343,7 +425,8 @@ class BurpExtender(IBurpExtender, ITab):
         data2 = open('./Data.txt', "r")
         self.checkUpdateSender()
         start_new_thread(self.sender.makeRequest,
-                         ('POST', '/api/v1/importscan/', data2,self.getUiComponent().parent))
+                         ('POST', '/api/v1/importscan/', data2,
+                          self.getUiComponent().parent))
 
     def sendIssue(self, event):
         """
@@ -352,7 +435,7 @@ class BurpExtender(IBurpExtender, ITab):
         Due to the current limitations in Defect Dojo API request/response
         pairs cannot be added *yet* .
         """
-        if hasattr(self, '_userID'):
+        if hasattr(self.ddui, 'userID'):
             pass
         else:
             self.getUserId()
@@ -360,8 +443,8 @@ class BurpExtender(IBurpExtender, ITab):
             lgt = len(self.contextMenu._invoker.getSelectedIssues())
             issues = self.contextMenu._invoker.getSelectedIssues()
         elif event.getActionCommand() == 'Send Issue':
-            lgt = len(self._listTargetIss.getSelectedIndices())
-            issues = self._listTargetIss.getSelectedIndices()
+            lgt = len(self.ddui._listTargetIss.getSelectedIndices())
+            issues = self.ddui._listTargetIss.getSelectedIndices()
         for i in range(lgt):
             ureqresp = []
             if event.getActionCommand() == 'Send To Defect Dojo':
@@ -387,31 +470,6 @@ class BurpExtender(IBurpExtender, ITab):
                         self._helpers.bytesToString(mess.getResponse())
                     })
                 url = str(issues[i].getUrl())
-            elif event.getActionCommand() == 'Send Issue':
-                title = self._issList[issues[i]].getIssueName()
-                description = self._issList[issues[i]].getIssueDetail(
-                ) if self._issList[issues[i]].getIssueDetail(
-                ) else self._issList[issues[i]].getIssueBackground()
-                severity = self._issList[issues[i]].getSeverity()
-                if severity == 'Information' or severity == 'Informational':
-                    severity = "Info"
-                impact = self._issList[issues[i]].getIssueBackground()
-                if self._issList[issues[i]].getRemediationBackground():
-                    mitigation = self._issList[
-                        issues[i]].getRemediationBackground() + '\n'
-                    if self._issList[issues[i]].getRemediationDetail():
-                        mitigation += self._issList[
-                            issues[i]].getRemediationDetail()
-                else:
-                    mitigation = str(self._issList[issues[i]].getIssueType())
-                for mess in self._issList[issues[i]].getHttpMessages():
-                    ureqresp.append({
-                        "req":
-                        self._helpers.bytesToString(mess.getRequest()),
-                        "resp":
-                        self._helpers.bytesToString(mess.getResponse())
-                    })
-                url = str(self._issList[issues[i]].getUrl())
             description = html2text(description)
             impact = html2text(impact)
             mitigation = html2text(mitigation)
@@ -436,16 +494,17 @@ class BurpExtender(IBurpExtender, ITab):
                 severity,
                 'product':
                 '/api/v1/products/' +
-                self._helpers.urlEncode(self._productID.getText()) + '/',
+                self._helpers.urlEncode(self.ddui.productID.getText()) + '/',
                 'engagement':
                 '/api/v1/engagements/' +
-                self._helpers.urlEncode(self._engagementID.getText()) + '/',
-                'reporter':
-                '/api/v1/users/' + self._helpers.urlEncode(str(self._userID)) +
+                self._helpers.urlEncode(self.ddui.engagementID.getText()) +
                 '/',
+                'reporter':
+                '/api/v1/users/' +
+                self._helpers.urlEncode(str(self.ddui.userID)) + '/',
                 'test':
                 '/api/v1/tests/' +
-                self._helpers.urlEncode(self._testID.getText()) + '/',
+                self._helpers.urlEncode(self.ddui.testID.getText()) + '/',
                 'impact':
                 impact,
                 'active':
@@ -468,13 +527,13 @@ class BurpExtender(IBurpExtender, ITab):
                              ('POST', '/api/v1/findings/', data))
 
     def checkUpdateSender(self):
-        if self.sender.ddurl != self._defectDojoURL.getText().lower().split(
-                '://'):
-            self.sender.setUrl(self._defectDojoURL.getText())
-        if self.sender.user != self._user.getText():
-            self.sender.setUser(self._user.getText())
-        if self._apiKey.getText() != self.sender.apikey:
-            self.sender.setApiKey(self._apiKey.getText())
+        if self.sender.ddurl != self.ddui.defectDojoURL.getText().lower(
+        ).split('://'):
+            self.sender.setUrl(self.ddui.defectDojoURL.getText())
+        if self.sender.user != self.ddui.user.getText():
+            self.sender.setUser(self.ddui.user.getText())
+        if self.ddui.apiKey.getText() != self.sender.apikey:
+            self.sender.setApiKey(self.ddui.apiKey.getText())
 
 
 class HttpData():
@@ -503,7 +562,7 @@ class HttpData():
     def setUser(self, user):
         self.user = user
 
-    def makeRequest(self, method, url, data=None,src=None):
+    def makeRequest(self, method, url, data=None, src=None):
         if self.ddurl[0] == 'http':
             conn = httplib.HTTPConnection(self.ddurl[1])
         elif self.ddurl[0] == 'https':
@@ -518,11 +577,17 @@ class HttpData():
         self.req_data = response.read()
         conn.close()
         if url == '/api/v1/importscan/':
-            try :
-                lbl = ClickableLink(str("Successfully Imported selected Issues ! Access Test : " + response.getheader('location').split('/')[4]),str(self.ddurl[0] + "://" + self.ddurl[1] + "/test/" +response.getheader('location').split('/')[4]))
-                JOptionPane.showMessageDialog(src,lbl.getClickAbleLink())
-            except :
-                JOptionPane.showMessageDialog(src,"Import possibly failed!","Error",JOptionPane.WARNING_MESSAGE)
+            try:
+                lbl = ClickableLink(
+                    str("Successfully Imported selected Issues ! Access Test : "
+                        + response.getheader('location').split('/')[4]),
+                    str(self.ddurl[0] + "://" + self.ddurl[1] + "/test/" +
+                        response.getheader('location').split('/')[4]))
+                JOptionPane.showMessageDialog(src, lbl.getClickAbleLink())
+            except:
+                JOptionPane.showMessageDialog(src, "Import possibly failed!",
+                                              "Error",
+                                              JOptionPane.WARNING_MESSAGE)
         try:
             os.remove("./Data.txt")
         except:
