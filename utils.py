@@ -6,6 +6,9 @@ from burp import IContextMenuInvocation
 from javax.swing import JMenuItem
 from javax.swing import JButton
 from java.awt import Desktop
+from java.lang import Runtime
+import platform
+import os
 from java import net
 
 
@@ -14,7 +17,6 @@ class ClickableLink():
     This method generates a clickable button inside the prompt
     after the report is uploaded . It supposedly opens
     your default browser on the test's page .
-    TODO make it work on linux as well .
     """
     def __init__(self,text,url):
         self.text = text
@@ -24,7 +26,10 @@ class ClickableLink():
         self.link.setText(self.text)
         return self.link
     def openURL(self,event):
-        Desktop.getDesktop().browse(net.URI(self.url))
+        if platform.system()=='Windows' or platform.system()=='Darwin':
+            Desktop.getDesktop().browse(net.URI(self.url))
+        else :
+            Runtime.getRuntime().exec("xdg-open "+self.url)
 
 def html2text(strText):
     """
@@ -129,10 +134,10 @@ class ProdListener(ActionListener):
     def actionPerformed(self, e):
         cmd = e.getActionCommand()
         if cmd == 'comboBoxChanged':
-            selected = self.a._productName.selectedIndex
+            selected = self.a.ddui.productName.selectedIndex
             if selected >= 0:
-                self.a._productID.setText(
-                    str(self.a.products.data['objects'][selected]['id']))
+                self.a.ddui.productID.setText(
+                    str(self.a.ddui.products.data['objects'][selected]['id']))
                 start_new_thread(self.a.getEngagements, (e, ))
 
 
@@ -147,10 +152,10 @@ class EngListener(ActionListener):
     def actionPerformed(self, e):
         cmd = e.getActionCommand()
         if cmd == 'comboBoxChanged':
-            selected = self.a._engagementName.selectedIndex
+            selected = self.a.ddui.engagementName.selectedIndex
             if selected >= 0:
-                self.a._engagementID.setText(
-                    str(self.a.engagements.data['objects'][selected]['id']))
+                self.a.ddui.engagementID.setText(
+                    str(self.a.ddui.engagements.data['objects'][selected]['id']))
                 start_new_thread(self.a.getTests, (e, ))
 
 
@@ -165,28 +170,8 @@ class TestListener(ActionListener):
     def actionPerformed(self, e):
         cmd = e.getActionCommand()
         if cmd == 'comboBoxChanged':
-            selected = self.a._testName.selectedIndex
+            selected = self.a.ddui.testName.selectedIndex
             if selected >= 0:
-                self.a._testID.setText(
-                    str(self.a.tests.data['objects'][selected]['id']))
+                self.a.ddui.testID.setText(
+                    str(self.a.ddui.tests.data['objects'][selected]['id']))
 
-
-class IssListener(MouseAdapter):
-    """
-    Listener used to update the list of issues in the Defect Dojo tab
-    when a target is double clicked .
-    """
-
-    def __init__(self, data):
-        self.a = data
-
-    def mouseClicked(self, e):
-        cmd = e.getClickCount()
-        if cmd == 2:
-            self.a.issNames.removeAllElements()
-            del self.a._issList[:]
-            for i in self.a._callbacks.getScanIssues(
-                    self.a._listTargets.getSelectedValue()):
-                self.a._issList.append(i)
-            for i in self.a._issList:
-                self.a.issNames.addElement(i.getIssueName())
