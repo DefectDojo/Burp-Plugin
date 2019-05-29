@@ -4,6 +4,7 @@ from burp import ITab
 from burp import IContextMenuFactory
 from burp import IContextMenuInvocation
 from burp import IScanIssue
+from burp import IExtensionStateListener
 from java.awt import Component
 from java.awt import Dimension
 from org.python.core.util import RelativeFile
@@ -52,10 +53,10 @@ class DDTabUi():
         innerPanelLayout = GroupLayout(innerPanel)
         self._panel.setLayout(layout)
         innerPanel.setLayout(innerPanelLayout)
-        self.labelDojoURL = JLabel("Defect Dojo :")
-        self.defectDojoURL = JTextField("https://defectdojo.herokuapp.com")
+        self.labelDojoURL = JLabel("DefectDojo :")
+        self.defectDojoURL = JTextField("")
         self.labelApiKey = JLabel("API Key :")
-        self.apiKey = JTextField("1dfdfa2042567ec751f6b3fa96038b743ea6f1cc")
+        self.apiKey = JTextField("")
         self.labelUsername = JLabel("Username :")
         self.user = JTextField("admin")
         self.labelProductID = JLabel("Product :")
@@ -75,7 +76,7 @@ class DDTabUi():
         self.testMan = TestListener(ext)
         self.testName.addActionListener(self.testMan)
         self.search = JTextField()
-        self.searchProductButton = JButton('Search Product',
+        self.searchProductButton = JButton('Product Search',
                                            actionPerformed=ext.getProducts)
         innerPanelLayout.setHorizontalGroup(
             innerPanelLayout.createParallelGroup().addGroup(
@@ -233,15 +234,18 @@ class DDTabUi():
                 GroupLayout.PREFERRED_SIZE).addGap(0, 199, sys.maxint)))
 
 
-class BurpExtender(IBurpExtender, ITab):
+class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
     def registerExtenderCallbacks(self, callbacks):
         self._callbacks = callbacks
         self._helpers = callbacks.getHelpers()
-        callbacks.setExtensionName("Defect Dojo")
+        callbacks.setExtensionName("DefectDojo")
         self.ddui = DDTabUi(self)
         self.sender = HttpData(self.ddui.defectDojoURL.getText(),
                                self.ddui.user.getText(),
                                self.ddui.apiKey.getText())
+        self.ddui.defectDojoURL.setText(callbacks.loadExtensionSetting("DD_URL"))
+        self.ddui.apiKey.setText(callbacks.loadExtensionSetting("DD_API"))
+        callbacks.registerExtensionStateListener(self)
         self.contextMenu = SendToDojo(self)
         self.contextMenu2 = SendReportToDojo(self)
         callbacks.registerContextMenuFactory(self.contextMenu)
@@ -250,8 +254,13 @@ class BurpExtender(IBurpExtender, ITab):
         callbacks.addSuiteTab(self)
         return
 
+    def extensionUnloaded(self):
+        callbacks = self._callbacks
+        callbacks.saveExtensionSetting("DD_URL", self.ddui.defectDojoURL.getText())
+        callbacks.saveExtensionSetting("DD_API", self.ddui.apiKey.getText())
+        
     def getTabCaption(self):
-        return "Defect Dojo"
+        return "DefectDojo"
 
     def getUiComponent(self):
         return self.ddui._panel
@@ -337,7 +346,7 @@ class BurpExtender(IBurpExtender, ITab):
 
     def sendAsReport(self, event):
         """
-        This sends selected issues(>=1) to Defect Dojo bundled as a report ,
+        This sends selected issues(>=1) to DefectDojo bundled as a report ,
         this will mean that they will be imported into a new test each time .
         """
         if hasattr(self.ddui, 'userID'):
@@ -346,7 +355,7 @@ class BurpExtender(IBurpExtender, ITab):
             self.getUserId()
         f = RelativeFile("Scan.xml")
         f.createNewFile()
-        if event.getActionCommand() == "Send All Issues to Defect Dojo":
+        if event.getActionCommand() == "Send All Issues to DefectDojo":
             ctr = 0
             for urls in self.contextMenu._invoker.getSelectedMessages():
                 url = ""
@@ -430,16 +439,16 @@ class BurpExtender(IBurpExtender, ITab):
 
     def sendIssue(self, event):
         """
-        This sends selected issues(>=1) to Defect Dojo be they selected from
-        the Defect Dojo Tab or the Context Menu in the Target Tab .
-        Due to the current limitations in Defect Dojo API request/response
+        This sends selected issues(>=1) to DefectDojo be they selected from
+        the DefectDojo Tab or the Context Menu in the Target Tab .
+        Due to the current limitations in DefectDojo API request/response
         pairs cannot be added *yet* .
         """
         if hasattr(self.ddui, 'userID'):
             pass
         else:
             self.getUserId()
-        if event.getActionCommand() == 'Send To Defect Dojo':
+        if event.getActionCommand() == 'Send To DefectDojo':
             lgt = len(self.contextMenu._invoker.getSelectedIssues())
             issues = self.contextMenu._invoker.getSelectedIssues()
         elif event.getActionCommand() == 'Send Issue':
@@ -447,7 +456,7 @@ class BurpExtender(IBurpExtender, ITab):
             issues = self.ddui._listTargetIss.getSelectedIndices()
         for i in range(lgt):
             ureqresp = []
-            if event.getActionCommand() == 'Send To Defect Dojo':
+            if event.getActionCommand() == 'Send To DefectDojo':
                 title = issues[i].getIssueName()
                 description = issues[i].getIssueDetail(
                 ) if issues[i].getIssueDetail(
