@@ -1,4 +1,4 @@
-from java.awt.event import ActionListener
+from java.awt.event import ActionListener, MouseAdapter
 from thread import start_new_thread
 from java.awt.event import MouseAdapter
 from burp import IContextMenuFactory
@@ -26,10 +26,14 @@ class ClickableLink():
         self.link.setText(self.text)
         return self.link
     def openURL(self,event):
-        if platform.system()=='Windows' or platform.system()=='Darwin':
+        try:
             Desktop.getDesktop().browse(net.URI(self.url))
-        else :
+        except:
             Runtime.getRuntime().exec("xdg-open "+self.url)
+
+def linkDialog(message, link, JOptionPane, src):
+    lbl = ClickableLink(message, link)
+    JOptionPane.showMessageDialog(src, lbl.getClickAbleLink()) 
 
 def html2text(strText):
     """
@@ -92,7 +96,7 @@ class SendToDojo(IContextMenuFactory):
         context = self._invoker.getInvocationContext()
         if not context == self._invoker.CONTEXT_SCANNER_RESULTS:
             return None
-        self.selection = JMenuItem("Send To Defect Dojo",
+        self.selection = JMenuItem("Send To DefectDojo (Existing Test)",
                                    actionPerformed=self.a.sendIssue)
         return [self.selection]
 
@@ -114,11 +118,11 @@ class SendReportToDojo(IContextMenuFactory):
                 or context == self._invoker.CONTEXT_TARGET_SITE_MAP_TREE):
             return None
         if context == self._invoker.CONTEXT_SCANNER_RESULTS:
-            self.selection = JMenuItem("Send Report To Defect Dojo",
+            self.selection = JMenuItem("Send Report To DefectDojo (New Burp Test)",
                                        actionPerformed=self.a.sendAsReport)
             return [self.selection]
         else:
-            self.selection = JMenuItem("Send All Issues to Defect Dojo",
+            self.selection = JMenuItem("Send All Issues to DefectDojo (New Burp Test)",
                                        actionPerformed=self.a.sendAsReport)
             return [self.selection]
 
@@ -140,6 +144,16 @@ class ProdListener(ActionListener):
                     str(self.a.ddui.products.data['objects'][selected]['id']))
                 start_new_thread(self.a.getEngagements, (e, ))
 
+class ProdMouseListener(MouseAdapter):
+    """
+    Fetches products for the product ComboBox 
+    """
+
+    def __init__(self, data):
+        self.a = data
+
+    def mousePressed(self, event):
+        self.a.getProducts(event)
 
 class EngListener(ActionListener):
     """

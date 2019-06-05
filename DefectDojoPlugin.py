@@ -39,8 +39,9 @@ import json
 import sys
 import os
 import httplib
-from utils import EngListener, ProdListener, TestListener
-from utils import SendReportToDojo, SendToDojo, html2text, ClickableLink
+from datetime import datetime
+from utils import EngListener, ProdListener, TestListener, ProdMouseListener
+from utils import SendReportToDojo, SendToDojo, html2text, ClickableLink, linkDialog
 
 __author__ = 'Alexandru Dracea'
 
@@ -55,6 +56,8 @@ class DDTabUi():
         innerPanel.setLayout(innerPanelLayout)
         self.labelDojoURL = JLabel("DefectDojo :")
         self.defectDojoURL = JTextField("")
+        self.searchConnectButton = JButton('Connect',
+                                           actionPerformed=ext.getProducts)
         self.labelApiKey = JLabel("API Key :")
         self.apiKey = JTextField("")
         self.labelUsername = JLabel("Username :")
@@ -64,8 +67,10 @@ class DDTabUi():
         self.labelProductName = JLabel("Product Name :")
         self.productName = JComboBox()
         self.prodMan = ProdListener(ext)
+        self.prodMouse = ProdMouseListener(ext)
+        self.productName.addMouseListener(self.prodMouse)
         self.productName.addActionListener(self.prodMan)
-        self.labelEngagementID = JLabel("Engagement :")
+        self.labelEngagementID = JLabel("Engagement (In Progress) :")
         self.engagementID = JTextField(focusLost=ext.getTests)
         self.engagementName = JComboBox()
         self.engMan = EngListener(ext)
@@ -122,7 +127,7 @@ class DDTabUi():
                             self.labelTestID, GroupLayout.PREFERRED_SIZE, 168,
                             GroupLayout.PREFERRED_SIZE).addComponent(
                                 self.searchProductButton,
-                                GroupLayout.PREFERRED_SIZE, 269,
+                                GroupLayout.PREFERRED_SIZE, 160,
                                 GroupLayout.PREFERRED_SIZE)).addPreferredGap(
                                     LayoutStyle.ComponentPlacement.RELATED))).
                     addGroup(
@@ -280,12 +285,17 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
             self._helpers.urlEncode(self.ddui.search.getText()))
         data = self.sender.req_data
         test = DefectDojoResponse(message="Done",
-                                  data=json.loads(data),
+                                  data=data,
                                   success=True)
         self.ddui.products = test
-        for objects in test.data['objects']:
-            self.ddui.productName.addItem(objects['name'])
-        start_new_thread(self.getUserId, ())
+        if test.data:
+            for objects in test.data['objects']:
+                self.ddui.productName.addItem(objects['name'])
+            start_new_thread(self.getUserId, ())
+        else:
+            JOptionPane.showMessageDialog(None, "Error connecting to DefectDojo, check the API key and Username.",
+                                                "Error",
+                                                JOptionPane.WARNING_MESSAGE)
 
     def getEngagements(self, event):
         """
@@ -296,13 +306,15 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
 
     def doGetEngagements(self):
         self.checkUpdateSender()
+        selected = self.ddui.productName.selectedIndex
+        selectedProduct = str(self.ddui.products.data['objects'][selected]['id'])
         self.sender.makeRequest(
             'GET', '/api/v1/engagements/?product=' +
-            self._helpers.urlEncode(self.ddui.productID.getText()) +
+            self._helpers.urlEncode(selectedProduct) +
             '&status=In%20Progress')
         data = self.sender.req_data
         test = DefectDojoResponse(message="Done",
-                                  data=json.loads(data),
+                                  data=data,
                                   success=True)
         self.ddui.engagements = test
         if test.data:
@@ -325,37 +337,45 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
             self._helpers.urlEncode(self.ddui.engagementID.getText()))
         data = self.sender.req_data
         test = DefectDojoResponse(message="Done",
-                                  data=json.loads(data),
+                                  data=data,
                                   success=True)
         self.ddui.tests = test
         if test.data:
             for objects in test.data['objects']:
+                d = datetime.strptime(str(objects['created']), '%Y-%m-%dT%H:%M:%S.%f')
                 self.ddui.testName.addItem(
-                    str(objects['test_type']) + str(objects['created']))
+                    str(objects['test_type']) + " (" + d.strftime("%b %d %Y %H:%M:%S") + ")")
 
     def getUserId(self):
         self.checkUpdateSender()
         self.sender.makeRequest('GET', '/api/v1/users/')
         data = self.sender.req_data
         test = DefectDojoResponse(message="Done",
-                                  data=json.loads(data),
+                                  data=data,
                                   success=True)
-        for objects in test.data['objects']:
-            if self.ddui.user.getText() == objects['username']:
-                self.ddui.userID = objects['id']
+        if 'objects' in test.data:
+            for objects in test.data['objects']:
+                if self.ddui.user.getText() == objects['username']:
+                    self.ddui.userID = objects['id']
 
     def sendAsReport(self, event):
         """
         This sends selected issues(>=1) to DefectDojo bundled as a report ,
         this will mean that they will be imported into a new test each time .
         """
+        checkMessage = self.checkSelection("engagement")
+        if checkMessage:
+            JOptionPane.showMessageDialog(self.getUiComponent().parent, checkMessage,
+                                                "Error",
+                                                JOptionPane.WARNING_MESSAGE)
+            return
         if hasattr(self.ddui, 'userID'):
             pass
         else:
             self.getUserId()
         f = RelativeFile("Scan.xml")
         f.createNewFile()
-        if event.getActionCommand() == "Send All Issues to DefectDojo":
+        if event.getActionCommand() == "Send All Issues to DefectDojo (New Burp Test)":
             ctr = 0
             for urls in self.contextMenu._invoker.getSelectedMessages():
                 url = ""
@@ -437,6 +457,17 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
                          ('POST', '/api/v1/importscan/', data2,
                           self.getUiComponent().parent))
 
+    def checkSelection(self, action):
+        message = ""
+        if action=="test":
+            if self.ddui.testID.getText() is None or self.ddui.testID.getText() == "":
+                message = "No test selected, please select a test in the DefectDojo configuration tab. "
+        elif action=="engagement":
+            if self.ddui.engagementID.getText() is None or self.ddui.engagementID.getText() == "":
+                message = "No engagement selected, please select a test in the DefectDojo configuration tab. "
+
+        return message
+
     def sendIssue(self, event):
         """
         This sends selected issues(>=1) to DefectDojo be they selected from
@@ -444,11 +475,17 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
         Due to the current limitations in DefectDojo API request/response
         pairs cannot be added *yet* .
         """
+        checkMessage = self.checkSelection("test")
+        if checkMessage:
+            JOptionPane.showMessageDialog(self.getUiComponent().parent, checkMessage,
+                                                "Error",
+                                                JOptionPane.WARNING_MESSAGE)
+            return
         if hasattr(self.ddui, 'userID'):
             pass
         else:
             self.getUserId()
-        if event.getActionCommand() == 'Send To DefectDojo':
+        if event.getActionCommand() == 'Send To DefectDojo (Existing Test)':
             lgt = len(self.contextMenu._invoker.getSelectedIssues())
             issues = self.contextMenu._invoker.getSelectedIssues()
         elif event.getActionCommand() == 'Send Issue':
@@ -456,7 +493,7 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
             issues = self.ddui._listTargetIss.getSelectedIndices()
         for i in range(lgt):
             ureqresp = []
-            if event.getActionCommand() == 'Send To DefectDojo':
+            if event.getActionCommand() == 'Send To DefectDojo (Existing Test)':
                 title = issues[i].getIssueName()
                 description = issues[i].getIssueDetail(
                 ) if issues[i].getIssueDetail(
@@ -534,6 +571,11 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
             self.checkUpdateSender()
             start_new_thread(self.sender.makeRequest,
                              ('POST', '/api/v1/findings/', data))
+        
+        message = str("Successfully imported (" + str(i+1) + ") selected issue(s). Access Test : "
+                            + self.ddui.testID.getText())
+        link = str(self.ddui.defectDojoURL.getText() + "test/" + self.ddui.testID.getText())
+        linkDialog(message, link, JOptionPane, self.getUiComponent().parent)
 
     def checkUpdateSender(self):
         if self.sender.ddurl != self.ddui.defectDojoURL.getText().lower(
@@ -562,6 +604,7 @@ class HttpData():
         }
 
     def setUrl(self, ddurl):
+        ddurl = ddurl.rstrip("/") 
         self.ddurl = ddurl.lower().split('://')
 
     def setApiKey(self, apikey):
@@ -576,27 +619,34 @@ class HttpData():
             conn = httplib.HTTPConnection(self.ddurl[1])
         elif self.ddurl[0] == 'https':
             conn = httplib.HTTPSConnection(self.ddurl[1])
-        else:
-            return None
-        if data:
-            conn.request(method, url, body=data, headers=self.headers)
-        else:
-            conn.request(method, url, headers=self.headers)
-        response = conn.getresponse()
-        self.req_data = response.read()
-        conn.close()
-        if url == '/api/v1/importscan/':
-            try:
-                lbl = ClickableLink(
-                    str("Successfully Imported selected Issues ! Access Test : "
-                        + response.getheader('location').split('/')[4]),
-                    str(self.ddurl[0] + "://" + self.ddurl[1] + "/test/" +
-                        response.getheader('location').split('/')[4]))
-                JOptionPane.showMessageDialog(src, lbl.getClickAbleLink())
-            except:
-                JOptionPane.showMessageDialog(src, "Import possibly failed!",
-                                              "Error",
-                                              JOptionPane.WARNING_MESSAGE)
+        
+        try:
+            # url = url.rstrip("/")
+            if data:
+                conn.request(method, url, body=data, headers=self.headers)
+            else:
+                conn.request(method, url, headers=self.headers)
+            response = conn.getresponse()
+            self.req_data = response.read()
+            conn.close()
+            if url == '/api/v1/importscan/':
+                try:
+                    message = str("Successfully imported selected issues. Access Test : "
+                            + response.getheader('location').split('/')[4])
+                    link = str(self.ddurl[0] + "://" + self.ddurl[1] + "/test/" +
+                            response.getheader('location').split('/')[4])
+                    linkDialog(message, link, JOptionPane, src)
+                except Exception as ex:
+                    JOptionPane.showMessageDialog(src, "Import possibly failed!",
+                                                "Error",
+                                                JOptionPane.WARNING_MESSAGE)
+                    print "Error: " + str(ex)
+        except Exception as ex:
+            JOptionPane.showMessageDialog(src, "Error connecting to DefectDojo, double check the URL.",
+                                                "Error",
+                                                JOptionPane.WARNING_MESSAGE)
+            print "Error: " + str(ex)
+            pass
         try:
             os.remove("./Data.txt")
         except:
@@ -613,7 +663,9 @@ class DefectDojoResponse(object):
 
     def __init__(self, message, success, data=None, response_code=-1):
         self.message = message
-        self.data = data
+        self.data = None
+        if data:
+            self.data = json.loads(data)
         self.success = success
         self.response_code = response_code
 
