@@ -141,7 +141,7 @@ class ProdListener(ActionListener):
             selected = self.a.ddui.productName.selectedIndex
             if selected >= 0:
                 self.a.ddui.productID.setText(
-                    str(self.a.ddui.products.data['objects'][selected]['id']))
+                    str(self.a.ddui.products.data['results'][selected]['id']))
                 start_new_thread(self.a.getEngagements, (e, ))
 
 class ProdMouseListener(MouseAdapter):
@@ -169,7 +169,7 @@ class EngListener(ActionListener):
             selected = self.a.ddui.engagementName.selectedIndex
             if selected >= 0:
                 self.a.ddui.engagementID.setText(
-                    str(self.a.ddui.engagements.data['objects'][selected]['id']))
+                    str(self.a.ddui.engagements.data['results'][selected]['id']))
                 start_new_thread(self.a.getTests, (e, ))
 
 
@@ -187,5 +187,4 @@ class TestListener(ActionListener):
             selected = self.a.ddui.testName.selectedIndex
             if selected >= 0:
                 self.a.ddui.testID.setText(
-                    str(self.a.ddui.tests.data['objects'][selected]['id']))
-
+                    str(self.a.ddui.tests.data['results'][selected]['id']))

@@ -56,8 +56,7 @@ class DDTabUi():
         innerPanel.setLayout(innerPanelLayout)
         self.labelDojoURL = JLabel("DefectDojo :")
         self.defectDojoURL = JTextField("")
-        self.searchConnectButton = JButton('Connect',
-                                           actionPerformed=ext.getProducts)
+        self.searchConnectButton = JButton('Connect',actionPerformed=ext.getProducts)
         self.labelApiKey = JLabel("API Key :")
         self.apiKey = JTextField("")
         self.labelUsername = JLabel("Username :")
@@ -81,6 +80,8 @@ class DDTabUi():
         self.testMan = TestListener(ext)
         self.testName.addActionListener(self.testMan)
         self.search = JTextField()
+        self.search.setVisible(False)
+
         self.searchProductButton = JButton('Product Search',
                                            actionPerformed=ext.getProducts)
         innerPanelLayout.setHorizontalGroup(
@@ -138,7 +139,7 @@ class DDTabUi():
                                 LayoutStyle.ComponentPlacement.RELATED))).
                 addGroup(innerPanelLayout.createParallelGroup().addGroup(
                     innerPanelLayout.createSequentialGroup().addComponent(
-                        self.engagementID, GroupLayout.PREFERRED_SIZE, 36,
+                        self.engagementID, GroupLayout.PREFERRED_SIZE, 44,
                         GroupLayout.PREFERRED_SIZE).addGap(
                             18, 18,
                             18).addComponent(self.engagementName,
@@ -158,7 +159,7 @@ class DDTabUi():
                                         GroupLayout.PREFERRED_SIZE)
                     )).addGroup(
                         innerPanelLayout.createSequentialGroup().addComponent(
-                            self.testID, GroupLayout.PREFERRED_SIZE, 36,
+                            self.testID, GroupLayout.PREFERRED_SIZE, 44,
                             GroupLayout.PREFERRED_SIZE).addGap(18, 18, 18).
                         addGroup(innerPanelLayout.createParallelGroup(
                         ).addComponent(
@@ -281,7 +282,7 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
     def doGetProducts(self):
         self.checkUpdateSender()
         self.sender.makeRequest(
-            'GET', '/api/v1/products/?name__icontains=' +
+            'GET', '/api/v2/products/' +
             self._helpers.urlEncode(self.ddui.search.getText()))
         data = self.sender.req_data
         test = DefectDojoResponse(message="Done",
@@ -289,7 +290,7 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
                                   success=True)
         self.ddui.products = test
         if test.data:
-            for objects in test.data['objects']:
+            for objects in test.data['results']:
                 self.ddui.productName.addItem(objects['name'])
             start_new_thread(self.getUserId, ())
         else:
@@ -307,9 +308,9 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
     def doGetEngagements(self):
         self.checkUpdateSender()
         selected = self.ddui.productName.selectedIndex
-        selectedProduct = str(self.ddui.products.data['objects'][selected]['id'])
+        selectedProduct = str(self.ddui.products.data['results'][selected]['id'])
         self.sender.makeRequest(
-            'GET', '/api/v1/engagements/?product=' +
+            'GET', '/api/v2/engagements/?product=' +
             self._helpers.urlEncode(selectedProduct) +
             '&status=In%20Progress')
         data = self.sender.req_data
@@ -318,7 +319,7 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
                                   success=True)
         self.ddui.engagements = test
         if test.data:
-            for objects in test.data['objects']:
+            for objects in test.data['results']:
                 self.ddui.engagementName.addItem(objects['name'])
 
     def getTests(self, event):
@@ -333,7 +334,7 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
     def doGetTests(self):
         self.checkUpdateSender()
         self.sender.makeRequest(
-            'GET', '/api/v1/tests/?engagement=' +
+            'GET', '/api/v2/tests/?engagement=' +
             self._helpers.urlEncode(self.ddui.engagementID.getText()))
         data = self.sender.req_data
         test = DefectDojoResponse(message="Done",
@@ -341,22 +342,26 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
                                   success=True)
         self.ddui.tests = test
         if test.data:
-            for objects in test.data['objects']:
-                d = datetime.strptime(str(objects['created']), '%Y-%m-%dT%H:%M:%S.%f')
-                self.ddui.testName.addItem(
-                    str(objects['test_type']) + " (" + d.strftime("%b %d %Y %H:%M:%S") + ")")
+            for objects in test.data['results']:
+                d = datetime.strptime(str(objects['created'][:-1]), '%Y-%m-%dT%H:%M:%S.%f')
+                self.ddui.testName.addItem(str(objects['test_type_name']) + " (" + d.strftime("%b/%d/%Y-%H:%M:%S") + ")")
 
     def getUserId(self):
         self.checkUpdateSender()
-        self.sender.makeRequest('GET', '/api/v1/users/')
+        self.sender.makeRequest('GET', '/api/v2/users/')
         data = self.sender.req_data
         test = DefectDojoResponse(message="Done",
                                   data=data,
                                   success=True)
-        if 'objects' in test.data:
-            for objects in test.data['objects']:
+        if test.data["count"] > 0:
+            for objects in test.data['results']:
                 if self.ddui.user.getText() == objects['username']:
                     self.ddui.userID = objects['id']
+                    break
+                else:
+                    self.ddui.userID = -1
+            if self.ddui.userID == -1:
+                linkDialog(self.ddui.user.getText()+" does not exist !","", JOptionPane, self.getUiComponent().parent)
 
     def sendAsReport(self, event):
         """
@@ -412,24 +417,14 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
         import datetime
         now = datetime.datetime.now()
         content = {
-            'build_id':
-            "",
-            "minimum_severity":
-            "Info",
-            "scan_date":
-            "%d-%d-%d" % (now.year, now.month, now.day),
-            "tags":
-            "BurpPlugin",
-            "active":
-            "true",
-            "verified":
-            "true",
-            "engagement":
-            '/api/v1/engagements/' +
-            self._helpers.urlEncode(self.ddui.engagementID.getText()) + '/',
-            'scan_type':
-            'Burp Scan'
-        }
+            "minimum_severity": "Info",
+            "scan_date": "%d-%d-%d" % (now.year, now.month, now.day),
+            "tags": "BurpPlugin",
+            "active": "True",
+            "verified": "True",
+            "engagement": self.ddui.engagementID.getText(),
+            "scan_type": "Burp Scan"
+        }   
         nl = '\r\n'
         data = []
         for (key, value) in content.iteritems():
@@ -453,10 +448,7 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
         data2.close()
         data2 = open('./Data.txt', "r")
         self.checkUpdateSender()
-        start_new_thread(self.sender.makeRequest,
-                         ('POST', '/api/v1/importscan/', data2,
-                          self.getUiComponent().parent))
-
+        start_new_thread(self.sender.makeRequest,('POST', '/api/v2/import-scan/', data2, self.getUiComponent().parent))
     def checkSelection(self, action):
         message = ""
         if action=="test":
@@ -532,45 +524,25 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
             except:
                 mitigation = mitigation.replace("\'", "")
             data = {
-                'title':
-                title,
-                'description':
-                description,
-                'severity':
-                severity,
-                'product':
-                '/api/v1/products/' +
-                self._helpers.urlEncode(self.ddui.productID.getText()) + '/',
-                'engagement':
-                '/api/v1/engagements/' +
-                self._helpers.urlEncode(self.ddui.engagementID.getText()) +
-                '/',
-                'reporter':
-                '/api/v1/users/' +
-                self._helpers.urlEncode(str(self.ddui.userID)) + '/',
-                'test':
-                '/api/v1/tests/' +
-                self._helpers.urlEncode(self.ddui.testID.getText()) + '/',
-                'impact':
-                impact,
-                'active':
-                True,
-                'verified':
-                True,
-                'mitigation':
-                mitigation,
-                'static_finding':
-                False,
-                'dynamic_finding':
-                False,
-                'file_path':
-                url
-                # 'steps_to_reproduce': ureqresp
-            }
+                'title': title,
+                'description': description,
+                'severity': severity,
+                "found_by": [self.ddui.userID],    
+                'test': int(self._helpers.urlEncode(self.ddui.testID.getText())),
+                'impact': impact,
+                'active': True,
+                'verified': True,
+                'mitigation': mitigation,
+                'static_finding': False,
+                'dynamic_finding': False,
+                "false_p" : False,
+                "duplicate" : False,
+                "numerical_severity":"S0",   
+                }
             data = json.dumps(data)
             self.checkUpdateSender()
             start_new_thread(self.sender.makeRequest,
-                             ('POST', '/api/v1/findings/', data))
+                             ('POST', '/api/v2/findings/', data))
         
         message = str("Successfully imported (" + str(i+1) + ") selected issue(s). Access Test : "
                             + self.ddui.testID.getText())
@@ -599,8 +571,8 @@ class HttpData():
         self.apikey = apikey
         self.headers = {
             'Content-Type': 'application/json',
-            'User-Agent': 'Testing',
-            'Authorization': "ApiKey " + self.user + ":" + self.apikey
+            'User-Agent': 'Defectdojo burpsuite plugin',
+            'Authorization': "Token "+ self.apikey
         }
 
     def setUrl(self, ddurl):
@@ -609,7 +581,7 @@ class HttpData():
 
     def setApiKey(self, apikey):
         self.apikey = apikey
-        self.headers['Authorization'] = "ApiKey " + self.user + ":" + apikey
+        self.headers['Authorization'] = "Token " + apikey
 
     def setUser(self, user):
         self.user = user
@@ -622,6 +594,7 @@ class HttpData():
         
         try:
             # url = url.rstrip("/")
+            
             if data:
                 conn.request(method, url, body=data, headers=self.headers)
             else:
@@ -629,12 +602,10 @@ class HttpData():
             response = conn.getresponse()
             self.req_data = response.read()
             conn.close()
-            if url == '/api/v1/importscan/':
+            if url == '/api/v2/import-scan/':
                 try:
-                    message = str("Successfully imported selected issues. Access Test : "
-                            + response.getheader('location').split('/')[4])
-                    link = str(self.ddurl[0] + "://" + self.ddurl[1] + "/test/" +
-                            response.getheader('location').split('/')[4])
+                    message = str("Successfully imported selected issues.")
+                    link = str(self.ddurl[0] + "://" + self.ddurl[1] + "/test/" )
                     linkDialog(message, link, JOptionPane, src)
                 except Exception as ex:
                     JOptionPane.showMessageDialog(src, "Import possibly failed!",
