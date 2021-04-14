@@ -283,7 +283,7 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
         self.checkUpdateSender()
         self.sender.makeRequest(
             'GET', '/api/v2/products/' +
-            self._helpers.urlEncode(self.ddui.search.getText()))
+            self._helpers.urlEncode(self.ddui.search.getText())+"?limit=4000&offset=0")
         data = self.sender.req_data
         test = DefectDojoResponse(message="Done",
                                   data=data,
@@ -312,7 +312,7 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
         self.sender.makeRequest(
             'GET', '/api/v2/engagements/?product=' +
             self._helpers.urlEncode(selectedProduct) +
-            '&status=In%20Progress')
+            '&status=In%20Progress&limit=4000&offset=0')
         data = self.sender.req_data
         test = DefectDojoResponse(message="Done",
                                   data=data,
@@ -335,7 +335,7 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
         self.checkUpdateSender()
         self.sender.makeRequest(
             'GET', '/api/v2/tests/?engagement=' +
-            self._helpers.urlEncode(self.ddui.engagementID.getText()))
+            self._helpers.urlEncode(self.ddui.engagementID.getText())+"&limit=4000&offset=0")
         data = self.sender.req_data
         test = DefectDojoResponse(message="Done",
                                   data=data,
@@ -344,7 +344,7 @@ class BurpExtender(IBurpExtender, ITab, IExtensionStateListener):
         if test.data:
             for objects in test.data['results']:
                 d = datetime.strptime(str(objects['created'][:-1]), '%Y-%m-%dT%H:%M:%S.%f')
-                self.ddui.testName.addItem(str(objects['test_type_name']) + " (" + d.strftime("%b/%d/%Y-%H:%M:%S") + ")")
+                self.ddui.testName.addItem(str(objects['test_type_name']) + " (" + d.strftime("%Y/%m/%d-%H:%M:%S") + ")")
 
     def getUserId(self):
         self.checkUpdateSender()
